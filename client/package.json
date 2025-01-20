@@ -1,11 +1,14 @@
 {
 	"name": "@maddsua/logpush-client",
-	"version": "0.1.0",
+	"version": "0.1.2",
 	"author": "maddsua",
 	"license": "MIT",
 	"type": "module",
 	"main": "./lib/client.ts",
 	"types": "./lib/client.ts",
+	"files": [
+		"lib"
+	],
 	"devDependencies": {
 		"esbuild": "^0.24.2",
 		"typescript": "^5.7.3"
