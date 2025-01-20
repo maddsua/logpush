@@ -1,0 +1,17 @@
+{
+	"name": "@maddsua/logpush-client",
+	"version": "0.1.0",
+	"author": "maddsua",
+	"license": "MIT",
+	"type": "module",
+	"main": "./lib/client.ts",
+	"types": "./lib/client.ts",
+	"devDependencies": {
+		"esbuild": "^0.24.2",
+		"typescript": "^5.7.3"
+	},
+	"scripts": {
+		"test": "esbuild --format=esm --bundle --outfile=tests/run/test.mjs tests/main.test.ts && node tests/run/test.mjs",
+		"check": "tsc"
+	}
+}

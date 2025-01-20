@@ -1,0 +1,26 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "queries.sql"
+    schema: "migrations"
+    gen:
+      go:
+        package: "dbops"
+        out: "dbops"
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "NullUUID"
+          - db_type: "jsonb"
+            go_type:
+              type: "[]byte"
+          - db_type: "jsonb"
+            nullable: true
+            go_type:
+              type: "[]byte"

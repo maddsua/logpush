@@ -1,0 +1,39 @@
+name: Publish to ghcr
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE_TAG: ghcr.io/${{ github.repository }}
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
+
+jobs:
+  containerize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: Get tag
+        id: vars
+        run: echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
+        
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./service
+          push: true
+          tags: ${{ env.IMAGE_BASE_TAG }}:${{ steps.vars.outputs.tag }}, ${{ env.IMAGE_BASE_TAG }}:latest

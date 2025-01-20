@@ -1,0 +1,5 @@
+**/node_modules
+client/tests/run
+.env
+service/service
+service/logpush-service

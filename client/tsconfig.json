@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+		"lib": ["DOM", "DOM.Iterable", "ES6", "ES2015", "ESNext"],
+		"target": "ESNext",
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"noEmit": true,
+		"verbatimModuleSyntax": true
+	},
+	"include": ["lib"],
+	"exclude": [
+		"node_modules",
+	]
+}
