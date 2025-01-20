@@ -92,25 +92,16 @@ func (this *LogIngester) handleRequest(req *http.Request) error {
 			slog.String("stream_id", logStream.ID.String()),
 			slog.String("remote_addr", req.RemoteAddr))
 
-		ingester := this.Timescale.IngestWeb
 		if this.Loki != nil {
-			ingester = this.Loki.IngestWeb
+			go this.Loki.IngestWeb(logStream, req.RemoteAddr, payload)
+		} else {
+			go this.Timescale.IngestWeb(logStream, req.RemoteAddr, payload)
 		}
-
-		go ingester(IngestSource{
-			Stream:     logStream,
-			RemoteAddr: req.RemoteAddr,
-		}, payload)
 
 		return nil
 	default:
 		return errors.New("invalid content type")
 	}
-}
-
-type IngestSource struct {
-	Stream     dbops.Stream
-	RemoteAddr string
 }
 
 type WebStream struct {
@@ -126,11 +117,23 @@ type WebLogEntry struct {
 	Meta    map[string]string `json:"meta"`
 }
 
-func (batch *WebStream) ToLokiStream(streamName string) LokiStream {
+func (batch *WebStream) ToLokiStream(streamSource dbops.Stream) LokiStream {
 
 	labels := map[string]string{
 		"source":       "web",
-		"service_name": streamName,
+		"service_name": streamSource.Name,
+	}
+
+	if len(streamSource.Labels) > 0 {
+		var streamLabels map[string]string
+		if err := json.Unmarshal(streamSource.Labels, &streamLabels); err == nil {
+			for key, val := range streamLabels {
+				if mval, has := labels[key]; has {
+					labels["_opt_"+key] = mval
+				}
+				labels[key] = val
+			}
+		}
 	}
 
 	metaFields := map[string]string{}

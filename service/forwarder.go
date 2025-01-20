@@ -139,26 +139,14 @@ func (this *LokiConnection) PushStreams(streams []LokiStream) error {
 	return fmt.Errorf("failed to push log streams: %s", string(responseBody))
 }
 
-func (this *LokiConnection) IngestWeb(source IngestSource, payload WebStream) {
+func (this *LokiConnection) IngestWeb(streamSource dbops.Stream, remoteAddr string, payload WebStream) {
 
-	stream := payload.ToLokiStream(source.Stream.Name)
+	stream := payload.ToLokiStream(streamSource)
 	if len(stream.Values) == 0 {
 		slog.Warn("LOKI FORWARDER: Empty log batch",
-			slog.String("stream_id", source.Stream.ID.String()),
-			slog.String("remote_addr", source.RemoteAddr))
+			slog.String("stream_id", streamSource.ID.String()),
+			slog.String("remote_addr", remoteAddr))
 		return
-	}
-
-	if len(source.Stream.Labels) > 0 {
-		var streamLabels map[string]string
-		if err := json.Unmarshal(source.Stream.Labels, &streamLabels); err == nil {
-			for key, val := range streamLabels {
-				if mval, has := stream.Stream[key]; has {
-					stream.Stream["_opt_"+key] = mval
-				}
-				stream.Stream[key] = val
-			}
-		}
 	}
 
 	for i := 0; i < webStreamPushRetryAttempts; i++ {
@@ -168,8 +156,8 @@ func (this *LokiConnection) IngestWeb(source IngestSource, payload WebStream) {
 				slog.String("err", err.Error()),
 				slog.Int("attempt", i+1),
 				slog.Int("of", webStreamPushRetryAttempts),
-				slog.String("stream_id", source.Stream.ID.String()),
-				slog.String("remote_addr", source.RemoteAddr))
+				slog.String("stream_id", streamSource.ID.String()),
+				slog.String("remote_addr", remoteAddr))
 			continue
 		}
 
@@ -178,8 +166,8 @@ func (this *LokiConnection) IngestWeb(source IngestSource, payload WebStream) {
 
 	slog.Info("LOKI FORWARDER: Wrote entries",
 		slog.Int("count", len(stream.Values)),
-		slog.String("stream_id", source.Stream.ID.String()),
-		slog.String("remote_addr", source.RemoteAddr))
+		slog.String("stream_id", streamSource.ID.String()),
+		slog.String("remote_addr", remoteAddr))
 }
 
 func lokiSerializeStreams(streams []LokiStream) (*bytes.Buffer, error) {
@@ -198,13 +186,13 @@ type Timescale struct {
 	DB *sql.DB
 }
 
-func (this *Timescale) IngestWeb(source IngestSource, payload WebStream) {
+func (this *Timescale) IngestWeb(streamSource dbops.Stream, remoteAddr string, payload WebStream) {
 
-	rows := payload.ToTimescaleRows(source.Stream.ID)
+	rows := payload.ToTimescaleRows(streamSource.ID)
 	if len(rows) == 0 {
 		slog.Warn("LOKI FORWARDER: Empty log batch",
-			slog.String("stream_id", source.Stream.ID.String()),
-			slog.String("remote_addr", source.RemoteAddr))
+			slog.String("stream_id", streamSource.ID.String()),
+			slog.String("remote_addr", remoteAddr))
 		return
 	}
 
@@ -215,8 +203,8 @@ func (this *Timescale) IngestWeb(source IngestSource, payload WebStream) {
 	if err != nil {
 		slog.Error("TIMESCALE FORWARDER: Failed to begin DB TX",
 			slog.String("err", err.Error()),
-			slog.String("stream_id", source.Stream.ID.String()),
-			slog.String("remote_addr", source.RemoteAddr))
+			slog.String("stream_id", streamSource.ID.String()),
+			slog.String("remote_addr", remoteAddr))
 		return
 	}
 
@@ -226,8 +214,8 @@ func (this *Timescale) IngestWeb(source IngestSource, payload WebStream) {
 		if err := txq.InsertStreamEntry(ctx, row); err != nil {
 			slog.Error("TIMESCALE FORWARDER: Failed to insert row",
 				slog.String("err", err.Error()),
-				slog.String("stream_id", source.Stream.ID.String()),
-				slog.String("remote_addr", source.RemoteAddr))
+				slog.String("stream_id", streamSource.ID.String()),
+				slog.String("remote_addr", remoteAddr))
 		}
 	}
 
@@ -236,13 +224,13 @@ func (this *Timescale) IngestWeb(source IngestSource, payload WebStream) {
 	if err := tx.Commit(); err != nil {
 		slog.Error("TIMESCALE FORWARDER: Failed to commit DB TX",
 			slog.String("err", err.Error()),
-			slog.String("stream_id", source.Stream.ID.String()),
-			slog.String("remote_addr", source.RemoteAddr))
+			slog.String("stream_id", streamSource.ID.String()),
+			slog.String("remote_addr", remoteAddr))
 		return
 	}
 
 	slog.Info("TIMESCALE FORWARDER: Wrote entries",
 		slog.Int("count", len(rows)),
-		slog.String("stream_id", source.Stream.ID.String()),
-		slog.String("remote_addr", source.RemoteAddr))
+		slog.String("stream_id", streamSource.ID.String()),
+		slog.String("remote_addr", remoteAddr))
 }
