@@ -45,37 +45,41 @@ func (this *LogIngester) ServeHTTP(writer http.ResponseWriter, req *http.Request
 
 func (this *LogIngester) handleRequest(req *http.Request) error {
 
-	serviceID, err := uuid.Parse(req.PathValue("id"))
+	streamID, err := uuid.Parse(req.PathValue("id"))
 	if err != nil {
 		return errors.New("service id required")
 	}
 
-	var logStream dbops.Stream
+	var getLogStream = func() (*dbops.Stream, error) {
 
-	if cached := this.StreamCache.Get(serviceID); cached != nil {
-
-		if cached.Entry == nil {
-			return errors.New("service not found")
+		if cached := this.StreamCache.Get(streamID); cached != nil {
+			return cached.Entry, nil
 		}
 
-		logStream = *cached.Entry
-
-	} else {
-
-		if logStream, err = this.DB.GetStream(req.Context(), serviceID); err != nil {
+		entry, err := this.DB.GetStream(req.Context(), streamID)
+		if err != nil {
 
 			if err == sql.ErrNoRows {
-				this.StreamCache.Set(serviceID, nil)
-				return errors.New("service not found")
+				this.StreamCache.Set(streamID, nil)
+				return nil, nil
 			}
 
-			slog.Error("Failed to query log stream",
-				slog.String("err", err.Error()))
-
-			return errors.New("unable to query requested service stream")
+			return nil, err
 		}
 
-		this.StreamCache.Set(serviceID, &logStream)
+		this.StreamCache.Set(streamID, &entry)
+		return &entry, nil
+	}
+
+	logStream, err := getLogStream()
+	if err != nil {
+		slog.Error("WEB STREAM: Failed to query log stream",
+			slog.String("err", err.Error()))
+		return errors.New("unable to query requested service stream")
+	} else if logStream == nil {
+		slog.Warn("WEB STREAM: Log stream not found",
+			slog.String("id", streamID.String()))
+		return errors.New("service not found")
 	}
 
 	contentType := req.Header.Get("content-type")
@@ -117,7 +121,7 @@ type WebLogEntry struct {
 	Meta    map[string]string `json:"meta"`
 }
 
-func (batch *WebStream) ToLokiStream(streamSource dbops.Stream) LokiStream {
+func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream) LokiStream {
 
 	labels := map[string]string{
 		"source":       "web",

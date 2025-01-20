@@ -139,7 +139,7 @@ func (this *LokiConnection) PushStreams(streams []LokiStream) error {
 	return fmt.Errorf("failed to push log streams: %s", string(responseBody))
 }
 
-func (this *LokiConnection) IngestWeb(streamSource dbops.Stream, remoteAddr string, payload WebStream) {
+func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, remoteAddr string, payload WebStream) {
 
 	stream := payload.ToLokiStream(streamSource)
 	if len(stream.Values) == 0 {
@@ -186,7 +186,7 @@ type Timescale struct {
 	DB *sql.DB
 }
 
-func (this *Timescale) IngestWeb(streamSource dbops.Stream, remoteAddr string, payload WebStream) {
+func (this *Timescale) IngestWeb(streamSource *dbops.Stream, remoteAddr string, payload WebStream) {
 
 	rows := payload.ToTimescaleRows(streamSource.ID)
 	if len(rows) == 0 {
