@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"fmt"
 	"log/slog"
 	"net"
@@ -13,13 +14,18 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 	"github.com/maddsua/logpush/service/dbops"
 
 	"github.com/joho/godotenv"
 )
 
-//	todo: add db miration
+//go:embed migrations/*
+var migrationsFs embed.FS
+
 //	todo: add management API
 //	todo: pull txid out of timescale metadata
 
@@ -36,33 +42,44 @@ func main() {
 		port = "8000"
 	}
 
-	lokiConn, err := ParseLokiUrl(os.Getenv("LOKI_URL"))
-	if err != nil {
-		slog.Error("Unable to parse LOKI_HOST",
-			slog.String("err", err.Error()))
-		os.Exit(1)
-	}
-
-	if lokiConn != nil {
-		slog.Info("Loki connection OK")
-	} else {
-		slog.Info("Loki not configured. Using Timescale/Postgres")
-	}
-
 	dbconn, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
-		slog.Error("Unable to open DB connection",
+		slog.Error("STARTUP: Unable to open DB connection",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
 
 	if err := dbconn.Ping(); err != nil {
-		slog.Error("Unable to open DB connection",
+		slog.Error("STARTUP: Unable to open DB connection",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
 
-	slog.Info("DB connection OK")
+	slog.Info("STARTUP: DB connection OK")
+
+	lokiConn, err := ParseLokiUrl(os.Getenv("LOKI_URL"))
+	if err != nil {
+		slog.Error("STARTUP: Unable to parse LOKI_HOST",
+			slog.String("err", err.Error()))
+		os.Exit(1)
+	}
+
+	if lokiConn != nil {
+		slog.Info("STARTUP: Loki connection OK")
+	} else {
+		slog.Info("STARTUP: Loki not configured. Using Timescale/Postgres")
+	}
+
+	if strings.ToLower(os.Getenv("DB_MIGRATE")) == "true" {
+
+		slog.Info("STARTUP: Running DB migrations")
+
+		if err := syncDbSchema(dbconn); err != nil {
+			slog.Error("STARTUP: DB migration failed",
+				slog.String("err", err.Error()))
+			os.Exit(1)
+		}
+	}
 
 	mux := http.NewServeMux()
 
@@ -80,8 +97,8 @@ func main() {
 		Addr:    ":" + port,
 	}
 
-	slog.Info("Starting server",
-		slog.String("at", fmt.Sprintf("Listeninig at http://localhost:%s/", port)))
+	slog.Info("STARTUP: Serving http",
+		slog.String("at", fmt.Sprintf("http://localhost:%s/", port)))
 
 	exitSig := make(chan os.Signal, 2)
 	signal.Notify(exitSig, syscall.SIGINT, syscall.SIGTERM)
@@ -96,12 +113,36 @@ func main() {
 	select {
 	case <-exitSig:
 		srv.Shutdown(context.Background())
-		slog.Warn("server shutting down...")
+		slog.Warn("SERVICE: Server shutting down...")
 	case err := <-srvSig:
-		slog.Error("server crashed",
+		slog.Error("SERVICE: server crashed",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
+}
+
+func syncDbSchema(dbconn *sql.DB) error {
+
+	migfs, err := iofs.New(migrationsFs, "migrations")
+	if err != nil {
+		return err
+	}
+
+	migdb, err := postgres.WithInstance(dbconn, &postgres.Config{})
+	if err != nil {
+		return err
+	}
+
+	mig, err := migrate.NewWithInstance("iofs", migfs, "postgres", migdb)
+	if err != nil {
+		return err
+	}
+
+	if err := mig.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+
+	return nil
 }
 
 func handleMethod(method func(*http.Request) error) http.Handler {
