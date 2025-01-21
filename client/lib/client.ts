@@ -32,7 +32,7 @@ export interface LogEntry {
 	date: number;
 	level: LogLevel;
 	message: string;
-	meta: Metadata | null;
+	meta?: Metadata | null;
 };
 
 type LoggerPushFn = (message: string, meta?: MetadataInit) => void;
@@ -43,6 +43,14 @@ export interface Logger {
 	debug: LoggerPushFn;
 	warn: LoggerPushFn;
 	error: LoggerPushFn;
+};
+
+export interface LogpushConsole {
+	info: (...args: any[]) => void;
+	log: (...args: any[]) => void;
+	warn: (...args: any[]) => void;
+	error: (...args: any[]) => void;
+	debug: (...args: any[]) => void;
 };
 
 export class Agent {
@@ -68,18 +76,51 @@ export class Agent {
 		this.entries = [];
 	}
 
-	private push = (level: LogLevel, message: string, meta?: MetadataInit) => {
+	private m_loggerPush = (level: LogLevel, message: string, meta?: MetadataInit) => {
+		
 		const date = new Date();
-		console.log(`${slogDate(date)} ${level.toUpperCase()} ${message}`);
-		this.entries.push({ date: date.getTime(), level, message, meta: unwrapMetadata(meta) });
+
+		this.entries.push({
+			date: date.getTime(),
+			level,
+			message,
+			meta: unwrapMetadata(meta),
+		});
+
+		const logFn = console.debug || console.log;
+		if (typeof logFn === 'function') {
+			logFn(`${slogDate(date)} ${level.toUpperCase()} ${message}`);
+		}
 	};
 
 	readonly logger: Logger = {
-		log: (message: string, meta?: MetadataInit) => this.push('log', message, meta),
-		info: (message: string, meta?: MetadataInit) => this.push('info', message, meta),
-		debug: (message: string, meta?: MetadataInit) => this.push('debug', message, meta),
-		warn: (message: string, meta?: MetadataInit) => this.push('warn', message, meta),
-		error: (message: string, meta?: MetadataInit) => this.push('error', message, meta),
+		log: (message: string, meta?: MetadataInit) => this.m_loggerPush('log', message, meta),
+		info: (message: string, meta?: MetadataInit) => this.m_loggerPush('info', message, meta),
+		debug: (message: string, meta?: MetadataInit) => this.m_loggerPush('debug', message, meta),
+		warn: (message: string, meta?: MetadataInit) => this.m_loggerPush('warn', message, meta),
+		error: (message: string, meta?: MetadataInit) => this.m_loggerPush('error', message, meta),
+	};
+
+	private m_consolePush = (level: keyof LogpushConsole, args: any[]) => {
+
+		this.entries.push({
+			date: new Date().getTime(),
+			level,
+			message: args.map(item => stringifyArg(item)).join(' '),
+		});
+		
+		const logFn = console[level];
+		if (typeof logFn === 'function') {
+			logFn(...args);
+		}
+	};
+
+	readonly console: LogpushConsole = {
+		info: (...args: any[]) => this.m_consolePush('info', args),
+		log: (...args: any[]) => this.m_consolePush('log', args),
+		warn: (...args: any[]) => this.m_consolePush('warn', args),
+		error: (...args: any[]) => this.m_consolePush('error', args),
+		debug: (...args: any[]) => this.m_consolePush('debug', args),
 	};
 
 	flush = async () => {
@@ -113,4 +154,58 @@ const slogDate = (date: Date): string => {
 	const sec = date.getSeconds().toString().padStart(2, '0');
 
 	return `${year}/${month}/${day} ${hour}:${min}:${sec}`;
+};
+
+const stringifyArg = (item: any): string => {
+	switch (typeof item) {
+		case 'string': return item;
+		case 'number': return item.toString();
+		case 'bigint': return item.toString();
+		case 'boolean': return `${item}`;
+		case 'object': return stringifyObjectArg(item);
+		case 'function': return '[fn()]';
+		case 'symbol': return item.toString();
+		default: return '[undefined]';
+	}
+};
+
+const stringifyObjectArg = (item: object): string => {
+	try {
+		return JSON.stringify(item, objectArgReplacerFn);
+	} catch (_) {
+		return '{}';
+	}
+};
+
+const objectArgReplacerFn = (_: string, value: any): any => {
+
+	if (typeof value !== 'object') {
+		return value;
+	}
+
+	if (value instanceof Error) {
+		return { message: value.message };
+	}
+
+	if (value instanceof FormData) {
+		return Object.fromEntries(value);
+	}
+
+	if (value instanceof Date) {
+		return value.toUTCString();
+	}
+
+	if (value instanceof RegExp) {
+		return value.source;
+	}
+
+	if (value instanceof Set) {
+		return Array.from(value.keys());
+	}
+
+	if (value instanceof Map) {
+		return Object.fromEntries(value);
+	}
+
+	return value;
 };

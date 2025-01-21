@@ -1,6 +1,6 @@
 {
 	"name": "@maddsua/logpush-client",
-	"version": "0.1.3",
+	"version": "0.2.0",
 	"author": "maddsua",
 	"license": "MIT",
 	"type": "module",
@@ -15,6 +15,7 @@
 	},
 	"scripts": {
 		"test": "esbuild --format=esm --bundle --outfile=tests/run/test.mjs tests/main.test.ts && node tests/run/test.mjs",
+		"test:console": "esbuild --format=esm --bundle --outfile=tests/run/console.test.mjs tests/console.test.ts && node tests/run/console.test.mjs",
 		"check": "tsc"
 	}
 }

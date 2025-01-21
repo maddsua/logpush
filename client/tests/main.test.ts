@@ -1,8 +1,9 @@
 import { Agent, type Logger } from "../lib/client";
+import { testAgentUrl } from "./test.config";
 
 const fakeHandler = async (request: Request, waitUntil: (task: Promise<any>) => void): Promise<Response> => {
 
-	const agent = new Agent('http://localhost:8000/push/stream/0d460d8a-f497-4027-9384-c45378a5a63d', {
+	const agent = new Agent(testAgentUrl, {
 		client_ip: request.headers.get('x-forwarded-for'),
 		agent: request.headers.get('user-agent'),
 		method: request.method.toLowerCase(),
