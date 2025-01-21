@@ -164,7 +164,7 @@ func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, remoteAddr str
 		break
 	}
 
-	slog.Info("LOKI FORWARDER: Wrote entries",
+	slog.Debug("LOKI FORWARDER: Wrote entries",
 		slog.Int("count", len(stream.Values)),
 		slog.String("stream_id", streamSource.ID.String()),
 		slog.String("remote_addr", remoteAddr))
@@ -229,7 +229,7 @@ func (this *Timescale) IngestWeb(streamSource *dbops.Stream, remoteAddr string, 
 		return
 	}
 
-	slog.Info("TIMESCALE FORWARDER: Wrote entries",
+	slog.Debug("TIMESCALE FORWARDER: Wrote entries",
 		slog.Int("count", len(rows)),
 		slog.String("stream_id", streamSource.ID.String()),
 		slog.String("remote_addr", remoteAddr))

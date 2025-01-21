@@ -37,6 +37,11 @@ func main() {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	}
 
+	if strings.ToLower(os.Getenv("DEBUG")) == "true" {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+		slog.Debug("Logging enabled")
+	}
+
 	port := os.Getenv("PORT")
 	if _, err := strconv.Atoi(port); err != nil {
 		port = "8000"

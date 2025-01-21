@@ -88,10 +88,14 @@ func (this *LogIngester) handleRequest(req *http.Request) error {
 
 		var payload WebStream
 		if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+			slog.Debug("WEB STREAM: Failed to parse payload",
+				slog.String("err", err.Error()),
+				slog.String("stream_id", logStream.ID.String()),
+				slog.String("remote_addr", req.RemoteAddr))
 			return errors.New("invalid batch payload")
 		}
 
-		slog.Info("WEB STREAM: Ingesting entries",
+		slog.Debug("WEB STREAM: Ingesting entries",
 			slog.Int("count", len(payload.Entries)),
 			slog.String("stream_id", logStream.ID.String()),
 			slog.String("remote_addr", req.RemoteAddr))
