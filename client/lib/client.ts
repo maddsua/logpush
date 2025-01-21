@@ -4,31 +4,7 @@ type Metadata = Record<string, string>;
 type MetadataInitValue = string | number | boolean | null | undefined;
 type MetadataInit = Record<string, MetadataInitValue>;
 
-const unwrapMetadata = (init?: MetadataInit): Metadata | null => {
-
-	if (!init) {
-		return null;
-	}
-
-	const transform = (val: MetadataInitValue): string | null => {
-		switch (typeof val) {
-			case 'string':
-				return val.trim();
-			case 'number':
-				return `${val}`;
-			case 'boolean':
-				return `${val}`;
-			default:
-				return null;
-		}
-	};
-
-	return Object.fromEntries(Object.entries(init)
-		.map(([key, value]) => ([key, transform(value)]))
-		.filter(([_, val]) => !!val)) as Metadata;
-};
-
-export interface LogEntry {
+interface LogEntry {
 	date: number;
 	level: LogLevel;
 	message: string;
@@ -37,6 +13,11 @@ export interface LogEntry {
 
 type LoggerPushFn = (message: string, meta?: MetadataInit) => void;
 
+/**
+ * Logger implements a similar to go slog interface.
+ * 
+ * Use it to push new log entries.
+ */
 export interface Logger {
 	log: LoggerPushFn;
 	info: LoggerPushFn;
@@ -45,6 +26,19 @@ export interface Logger {
 	error: LoggerPushFn;
 };
 
+/**
+ * Console is a compatibility interface for eventdb and loki-serverless clients.
+ * 
+ * It implements the most frequently used methods of the standard ES console,
+ * however not all objects and classes can be properly serialized by it.
+ * 
+ * To ensure proper serialization consider preferring to pass only objects
+ * that can be JSON-serialized. Some widely used classes as FormData, Date, Set, Map and RegExp
+ * are fully supported, while classes like Request and Response will not be fully serialized to
+ * avoid any side effects of calling their async methods.
+ * 
+ * For new projects you should use the Logger interface instead.
+ */
 export interface LogpushConsole {
 	info: (...args: any[]) => void;
 	log: (...args: any[]) => void;
@@ -53,6 +47,12 @@ export interface LogpushConsole {
 	debug: (...args: any[]) => void;
 };
 
+/**
+ * Logpush agent is a class that holds instance/context level metadata, log queue and a connection to Logpush service.
+ * 
+ * All metadata fields added to the agent will be copied to every log entry that it pushes,
+ * so put stuff like app environment name and other static options here.
+ */
 export class Agent {
 
 	readonly url: string;
@@ -109,7 +109,7 @@ export class Agent {
 			message: args.map(item => stringifyArg(item)).join(' '),
 		});
 		
-		const logFn = console[level];
+		const logFn = console[level] || console.log;
 		if (typeof logFn === 'function') {
 			logFn(...args);
 		}
@@ -144,6 +144,30 @@ export class Agent {
 	};
 };
 
+const unwrapMetadata = (init?: MetadataInit): Metadata | null => {
+
+	if (!init) {
+		return null;
+	}
+
+	const transform = (val: MetadataInitValue): string | null => {
+		switch (typeof val) {
+			case 'string':
+				return val.trim();
+			case 'number':
+				return `${val}`;
+			case 'boolean':
+				return `${val}`;
+			default:
+				return null;
+		}
+	};
+
+	return Object.fromEntries(Object.entries(init)
+		.map(([key, value]) => ([key, transform(value)]))
+		.filter(([_, val]) => !!val)) as Metadata;
+};
+
 const slogDate = (date: Date): string => {
 
 	const year = date.getFullYear();
@@ -156,38 +180,57 @@ const slogDate = (date: Date): string => {
 	return `${year}/${month}/${day} ${hour}:${min}:${sec}`;
 };
 
-const stringifyArg = (item: any): string => {
+const stringifyArg = (item: any, nested?: boolean): string => {
 	switch (typeof item) {
-		case 'string': return item;
+		case 'string': return nested ? `'${item}'` : item;
 		case 'number': return item.toString();
 		case 'bigint': return item.toString();
 		case 'boolean': return `${item}`;
 		case 'object': return stringifyObjectArg(item);
 		case 'function': return '[fn()]';
 		case 'symbol': return item.toString();
-		default: return '[undefined]';
+		default: return '{}';
 	}
 };
 
-const stringifyObjectArg = (item: object): string => {
+const stringifyObjectArg = (value: object): string => {
+
 	try {
-		return JSON.stringify(item, objectArgReplacerFn);
+
+		if (value instanceof Error) {
+			return value.stack ? `${value.stack}\n` : `${value.name || 'Error'}: '${value.message}'`;
+		}
+
+		if (value instanceof Date) {
+			return `'${value.toUTCString()}'`;
+		}
+
+		if (value instanceof RegExp) {
+			return `'${value}'`;
+		}
+		
+		if (value instanceof URL) {
+			return `'${value.href}'`;
+		}
+
+		return JSON.stringify(value, stringifyObjectReplacer);
+
 	} catch (_) {
 		return '{}';
 	}
 };
 
-const objectArgReplacerFn = (_: string, value: any): any => {
+const stringifyObjectReplacer = (_: string, value: any): any => {
 
 	if (typeof value !== 'object') {
 		return value;
 	}
 
 	if (value instanceof Error) {
-		return { message: value.message };
+		return { message: value.message, stack: value.stack, type: value.name };
 	}
 
-	if (value instanceof FormData) {
+	if (value instanceof FormData || value instanceof Map || value instanceof Headers) {
 		return Object.fromEntries(value);
 	}
 
@@ -203,8 +246,19 @@ const objectArgReplacerFn = (_: string, value: any): any => {
 		return Array.from(value.keys());
 	}
 
-	if (value instanceof Map) {
-		return Object.fromEntries(value);
+	if (value instanceof Request) {
+		return {
+			url: value.url,
+			method: value.method,
+			headers: value.headers,
+			referrer: value.referrer,
+			credentials: value.credentials,
+			mode: value.mode,
+		};
+	}
+
+	if (value instanceof Response) {
+		return { status: value.status, headers: value.headers, type: value.type };
 	}
 
 	return value;
