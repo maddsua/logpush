@@ -84,6 +84,10 @@ export class Agent {
 
 	flush = async () => {
 
+		if (!this.entries.length) {
+			return;
+		}
+
 		const response = await fetch(this.url, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
