@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -19,7 +20,8 @@ import (
 )
 
 type LokiConnection struct {
-	url string
+	url           string
+	UseStructMeta bool
 }
 
 func ParseLokiUrl(params string) (*LokiConnection, error) {
@@ -47,7 +49,8 @@ func ParseLokiUrl(params string) (*LokiConnection, error) {
 	}
 
 	return &LokiConnection{
-		url: lokiUrl.String(),
+		url:           lokiUrl.String(),
+		UseStructMeta: strings.ToLower(os.Getenv("LOKI_STRUCTURED_METADATA")) != "false",
 	}, nil
 }
 
@@ -142,8 +145,16 @@ func (this *LokiConnection) PushStreams(streams []LokiStream) error {
 
 func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID, remoteAddr string, payload WebStream) {
 
-	stream := payload.ToLokiStream(streamSource, txID)
-	if len(stream.Values) == 0 {
+	var streams []LokiStream
+	if this.UseStructMeta {
+		if next := payload.ToStructuredLokiStream(streamSource, txID); len(next.Values) > 0 {
+			streams = []LokiStream{next}
+		}
+	} else {
+		streams = payload.ToLokiStreams(streamSource, txID)
+	}
+
+	if len(streams) == 0 {
 		slog.Warn("LOKI FORWARDER: Empty log batch",
 			slog.String("stream_id", streamSource.ID.String()),
 			slog.String("remote_addr", remoteAddr))
@@ -152,7 +163,7 @@ func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID
 
 	for i := 0; i < webStreamPushRetryAttempts; i++ {
 
-		if err := this.PushStreams([]LokiStream{stream}); err != nil {
+		if err := this.PushStreams(streams); err != nil {
 			slog.Error("LOKI FORWARDER: failed to push entries",
 				slog.String("err", err.Error()),
 				slog.Int("attempt", i+1),
@@ -166,7 +177,7 @@ func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID
 	}
 
 	slog.Debug("LOKI FORWARDER: Wrote entries",
-		slog.Int("count", len(stream.Values)),
+		slog.Int("count", len(streams)),
 		slog.String("stream_id", streamSource.ID.String()),
 		slog.String("remote_addr", remoteAddr))
 }

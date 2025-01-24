@@ -127,7 +127,45 @@ type WebLogEntry struct {
 	Meta    map[string]string `json:"meta"`
 }
 
-func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream, txID uuid.UUID) LokiStream {
+func (this *WebStream) ToLokiStreams(streamSource *dbops.Stream, txID uuid.UUID) []LokiStream {
+
+	baseLabels := map[string]string{
+		"source":       "web",
+		"service_name": streamSource.Name,
+		"logpush_tx":   txID.String(),
+	}
+
+	mergeStreamLabels(streamSource, baseLabels)
+	copyMetaFields(baseLabels, this.Meta)
+
+	var result []LokiStream
+
+	for idx, entry := range this.Entries {
+
+		if entry.Message = strings.TrimSpace(entry.Message); entry.Message == "" {
+			continue
+		}
+
+		labels := map[string]string{}
+		maps.Copy(labels, baseLabels)
+		copyMetaFields(labels, entry.Meta)
+		labels["detected_level"] = entry.Level.String()
+
+		result = append(result, LokiStream{
+			Stream: labels,
+			Values: [][]any{
+				{
+					entry.Date.String(idx),
+					entry.Message,
+				},
+			},
+		})
+	}
+
+	return result
+}
+
+func (this *WebStream) ToStructuredLokiStream(streamSource *dbops.Stream, txID uuid.UUID) LokiStream {
 
 	labels := map[string]string{
 		"source":       "web",
@@ -135,21 +173,11 @@ func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream, txID uuid.UUID)
 		"logpush_tx":   txID.String(),
 	}
 
-	if len(streamSource.Labels) > 0 {
-		var streamLabels map[string]string
-		if err := json.Unmarshal(streamSource.Labels, &streamLabels); err == nil {
-			for key, val := range streamLabels {
-				if mval, has := labels[key]; has {
-					labels["_opt_"+key] = mval
-				}
-				labels[key] = val
-			}
-		}
-	}
+	mergeStreamLabels(streamSource, labels)
 
 	metaFields := map[string]string{}
 
-	for key, val := range batch.Meta {
+	for key, val := range this.Meta {
 
 		if _, has := labels[key]; has {
 			continue
@@ -164,7 +192,7 @@ func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream, txID uuid.UUID)
 	}
 
 	var streamValues [][]any
-	for idx, entry := range batch.Entries {
+	for idx, entry := range this.Entries {
 
 		if entry.Message = strings.TrimSpace(entry.Message); entry.Message == "" {
 			continue
@@ -195,26 +223,12 @@ func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID, txID uuid.UUID) []db
 
 	var result []dbops.InsertStreamEntryParams
 
-	var copyFields = func(src map[string]string, dst map[string]string) {
-
-		if src == nil || dst == nil {
-			return
-		}
-
-		for key, val := range src {
-			if mval, has := dst[key]; has {
-				dst["_entry_"+key] = mval
-			}
-			dst[key] = val
-		}
-	}
-
 	var mergeMeta = func(entry WebLogEntry) map[string]string {
 
 		metadata := map[string]string{}
 
-		copyFields(batch.Meta, metadata)
-		copyFields(entry.Meta, metadata)
+		maps.Copy(metadata, batch.Meta)
+		copyMetaFields(metadata, entry.Meta)
 
 		if len(metadata) == 0 {
 			return nil
@@ -245,6 +259,39 @@ func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID, txID uuid.UUID) []db
 	}
 
 	return result
+}
+
+func mergeStreamLabels(stream *dbops.Stream, labels map[string]string) {
+
+	if len(stream.Labels) == 0 {
+		return
+	}
+
+	var streamLabels map[string]string
+	if err := json.Unmarshal(stream.Labels, &streamLabels); err != nil {
+		return
+	}
+
+	for key, val := range streamLabels {
+		if mval, has := labels[key]; has {
+			labels["_opt_"+key] = mval
+		}
+		labels[key] = val
+	}
+}
+
+func copyMetaFields(dst map[string]string, src map[string]string) {
+
+	if src == nil || dst == nil {
+		return
+	}
+
+	for key, val := range src {
+		if mval, has := dst[key]; has {
+			dst["_entry_"+key] = mval
+		}
+		dst[key] = val
+	}
 }
 
 func NewStreamCache() *StreamCache {
