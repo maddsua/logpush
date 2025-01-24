@@ -21,6 +21,7 @@ type StreamEntry struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
 	StreamID  uuid.UUID
+	TxID      uuid.NullUUID
 	Level     string
 	Message   string
 	Metadata  []byte

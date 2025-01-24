@@ -31,6 +31,7 @@ func (q *Queries) GetStream(ctx context.Context, id uuid.UUID) (Stream, error) {
 const insertStreamEntry = `-- name: InsertStreamEntry :exec
 insert into stream_entries (
 	stream_id,
+	tx_id,
 	created_at,
 	level,
 	message,
@@ -40,12 +41,14 @@ insert into stream_entries (
 	$2,
 	$3,
 	$4,
-	$5
+	$5,
+	$6
 )
 `
 
 type InsertStreamEntryParams struct {
 	StreamID  uuid.UUID
+	TxID      uuid.NullUUID
 	CreatedAt time.Time
 	Level     string
 	Message   string
@@ -55,6 +58,7 @@ type InsertStreamEntryParams struct {
 func (q *Queries) InsertStreamEntry(ctx context.Context, arg InsertStreamEntryParams) error {
 	_, err := q.db.ExecContext(ctx, insertStreamEntry,
 		arg.StreamID,
+		arg.TxID,
 		arg.CreatedAt,
 		arg.Level,
 		arg.Message,

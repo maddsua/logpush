@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/maddsua/logpush/service/dbops"
 )
 
@@ -139,9 +140,9 @@ func (this *LokiConnection) PushStreams(streams []LokiStream) error {
 	return fmt.Errorf("failed to push log streams: %s", string(responseBody))
 }
 
-func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, remoteAddr string, payload WebStream) {
+func (this *LokiConnection) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID, remoteAddr string, payload WebStream) {
 
-	stream := payload.ToLokiStream(streamSource)
+	stream := payload.ToLokiStream(streamSource, txID)
 	if len(stream.Values) == 0 {
 		slog.Warn("LOKI FORWARDER: Empty log batch",
 			slog.String("stream_id", streamSource.ID.String()),
@@ -186,9 +187,9 @@ type Timescale struct {
 	DB *sql.DB
 }
 
-func (this *Timescale) IngestWeb(streamSource *dbops.Stream, remoteAddr string, payload WebStream) {
+func (this *Timescale) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID, remoteAddr string, payload WebStream) {
 
-	rows := payload.ToTimescaleRows(streamSource.ID)
+	rows := payload.ToTimescaleRows(streamSource.ID, txID)
 	if len(rows) == 0 {
 		slog.Warn("LOKI FORWARDER: Empty log batch",
 			slog.String("stream_id", streamSource.ID.String()),

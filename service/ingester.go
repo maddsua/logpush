@@ -100,10 +100,12 @@ func (this *LogIngester) handleRequest(req *http.Request) error {
 			slog.String("stream_id", logStream.ID.String()),
 			slog.String("remote_addr", req.RemoteAddr))
 
+		txID := uuid.New()
+
 		if this.Loki != nil {
-			go this.Loki.IngestWeb(logStream, req.RemoteAddr, payload)
+			go this.Loki.IngestWeb(logStream, txID, req.RemoteAddr, payload)
 		} else {
-			go this.Timescale.IngestWeb(logStream, req.RemoteAddr, payload)
+			go this.Timescale.IngestWeb(logStream, txID, req.RemoteAddr, payload)
 		}
 
 		return nil
@@ -125,11 +127,12 @@ type WebLogEntry struct {
 	Meta    map[string]string `json:"meta"`
 }
 
-func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream) LokiStream {
+func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream, txID uuid.UUID) LokiStream {
 
 	labels := map[string]string{
 		"source":       "web",
 		"service_name": streamSource.Name,
+		"logpush_tx":   txID.String(),
 	}
 
 	if len(streamSource.Labels) > 0 {
@@ -147,20 +150,17 @@ func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream) LokiStream {
 	metaFields := map[string]string{}
 
 	for key, val := range batch.Meta {
-		switch key {
-		case "service_name", "source":
+
+		if _, has := labels[key]; has {
 			continue
+		}
+
+		switch key {
 		case "env", "environment":
 			labels["env"] = val
-		case "request_id", "transaction_id", "rid", "tx_id":
-			labels["request_id"] = val
 		default:
 			metaFields[key] = val
 		}
-	}
-
-	if _, ok := labels["request_id"]; !ok {
-		labels["request_id"] = uuid.New().String()
 	}
 
 	var streamValues [][]any
@@ -191,7 +191,7 @@ func (batch *WebStream) ToLokiStream(streamSource *dbops.Stream) LokiStream {
 	}
 }
 
-func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID) []dbops.InsertStreamEntryParams {
+func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID, txID uuid.UUID) []dbops.InsertStreamEntryParams {
 
 	var result []dbops.InsertStreamEntryParams
 
@@ -235,8 +235,9 @@ func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID) []dbops.InsertStream
 		}
 
 		result = append(result, dbops.InsertStreamEntryParams{
-			StreamID:  streamID,
 			CreatedAt: entry.Date.Time(idx),
+			StreamID:  streamID,
+			TxID:      uuid.NullUUID{UUID: txID, Valid: true},
 			Level:     entry.Level.String(),
 			Message:   entry.Message,
 			Metadata:  metadata,
