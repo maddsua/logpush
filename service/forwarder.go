@@ -54,6 +54,28 @@ func ParseLokiUrl(params string) (*LokiConnection, error) {
 	}, nil
 }
 
+func (this *LokiConnection) Ready() error {
+
+	req, err := http.NewRequest("GET", this.url+"/ready", nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusAccepted, http.StatusNoContent:
+		return nil
+	}
+
+	return fmt.Errorf("http status code %d", resp.StatusCode)
+}
+
 type Level string
 
 func (lvl Level) String() string {

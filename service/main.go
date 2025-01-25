@@ -27,7 +27,6 @@ import (
 var migrationsFs embed.FS
 
 //	todo: add management API
-//	todo: pull txid out of timescale metadata
 
 func main() {
 
@@ -70,7 +69,15 @@ func main() {
 	}
 
 	if lokiConn != nil {
+
+		if err := lokiConn.Ready(); err != nil {
+			slog.Error("STARTUP: Loki is not ready",
+				slog.String("err", err.Error()))
+			os.Exit(1)
+		}
+
 		slog.Info("STARTUP: Loki connection OK")
+
 	} else {
 		slog.Info("STARTUP: Loki not configured. Using Timescale/Postgres")
 	}
