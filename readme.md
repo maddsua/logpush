@@ -36,4 +36,20 @@ The basic features are:
 
 If you have a ton of different apps shitting logs all over different hosting platforms, probably yes.
 
-And if you find this project useful give it a start dawg
+And if you find this project useful give it a star dawg
+
+
+## Deploying
+
+Use the docker image and you're all set.
+
+### Env config options
+
+- `LOG_FMT`: `json|null` - Output JSON formatted logs
+- `DEBUG`: `true|false|null` - Shit to the console with super detailed logs
+- `PORT`: `{integer}|null` - HTTP server port
+- `DATABASE_URL`: `{string}` - PostgreSQL/TImescaleDB database URL
+- `LOKI_URL`: `{string}|null` - Loki HTTP API url (only schema and host are used)
+- `LOKI_STRUCTURED_METADATA`: `true|false|null` - Use loki structured metadata instead of labels for everything
+- `DB_MIGRATE`: `true|false|null` - Run DB migration on startup
+- `RPC_TOKEN`: `{string}|null` - Management API token
