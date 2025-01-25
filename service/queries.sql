@@ -1,6 +1,21 @@
 -- name: GetStream :one
 select * from streams where id = sqlc.arg(id);
 
+-- name: ListStreams :many
+select id, created_at, name from streams;
+
+-- name: DeleteStream :execrows
+delete from streams where id = sqlc.arg(id);
+
+-- name: AddStream :one
+insert into streams (
+	name,
+	labels
+) values (
+	sqlc.arg(name),
+	sqlc.narg(labels)
+) returning *;
+
 -- name: InsertStreamEntry :exec
 insert into stream_entries (
 	stream_id,
@@ -17,3 +32,9 @@ insert into stream_entries (
 	sqlc.arg(message),
 	sqlc.narg(metadata)
 );
+
+-- name: SetStreamLabels :one
+update streams
+set labels = sqlc.narg(labels)
+where id = sqlc.arg(id)
+returning *;

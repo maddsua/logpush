@@ -7,10 +7,50 @@ package dbops
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+const addStream = `-- name: AddStream :one
+insert into streams (
+	name,
+	labels
+) values (
+	$1,
+	$2
+) returning id, created_at, name, labels
+`
+
+type AddStreamParams struct {
+	Name   string
+	Labels sql.Null[[]byte]
+}
+
+func (q *Queries) AddStream(ctx context.Context, arg AddStreamParams) (Stream, error) {
+	row := q.db.QueryRowContext(ctx, addStream, arg.Name, arg.Labels)
+	var i Stream
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Labels,
+	)
+	return i, err
+}
+
+const deleteStream = `-- name: DeleteStream :execrows
+delete from streams where id = $1
+`
+
+func (q *Queries) DeleteStream(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteStream, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
 
 const getStream = `-- name: GetStream :one
 select id, created_at, name, labels from streams where id = $1
@@ -52,7 +92,7 @@ type InsertStreamEntryParams struct {
 	CreatedAt time.Time
 	Level     string
 	Message   string
-	Metadata  []byte
+	Metadata  sql.Null[[]byte]
 }
 
 func (q *Queries) InsertStreamEntry(ctx context.Context, arg InsertStreamEntryParams) error {
@@ -65,4 +105,61 @@ func (q *Queries) InsertStreamEntry(ctx context.Context, arg InsertStreamEntryPa
 		arg.Metadata,
 	)
 	return err
+}
+
+const listStreams = `-- name: ListStreams :many
+select id, created_at, name from streams
+`
+
+type ListStreamsRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	Name      string
+}
+
+func (q *Queries) ListStreams(ctx context.Context) ([]ListStreamsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listStreams)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListStreamsRow
+	for rows.Next() {
+		var i ListStreamsRow
+		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setStreamLabels = `-- name: SetStreamLabels :one
+update streams
+set labels = $1
+where id = $2
+returning id, created_at, name, labels
+`
+
+type SetStreamLabelsParams struct {
+	Labels sql.Null[[]byte]
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetStreamLabels(ctx context.Context, arg SetStreamLabelsParams) (Stream, error) {
+	row := q.db.QueryRowContext(ctx, setStreamLabels, arg.Labels, arg.ID)
+	var i Stream
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Labels,
+	)
+	return i, err
 }

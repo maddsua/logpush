@@ -5,6 +5,7 @@
 package dbops
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +15,7 @@ type Stream struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
 	Name      string
-	Labels    []byte
+	Labels    sql.Null[[]byte]
 }
 
 type StreamEntry struct {
@@ -24,5 +25,5 @@ type StreamEntry struct {
 	TxID      uuid.NullUUID
 	Level     string
 	Message   string
-	Metadata  []byte
+	Metadata  sql.Null[[]byte]
 }

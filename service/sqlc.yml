@@ -19,8 +19,10 @@ sql:
               type: "NullUUID"
           - db_type: "jsonb"
             go_type:
-              type: "[]byte"
+              type: "RawMessage"
+              import: "encoding/json"
           - db_type: "jsonb"
             nullable: true
             go_type:
-              type: "[]byte"
+              type: "Null[[]byte]"
+              import: "database/sql"

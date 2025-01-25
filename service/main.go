@@ -13,20 +13,20 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 	"github.com/maddsua/logpush/service/dbops"
+	rest_rpc "github.com/maddsua/logpush/service/rpc/rest"
 
 	"github.com/joho/godotenv"
 )
 
 //go:embed migrations/*
 var migrationsFs embed.FS
-
-//	todo: add management API
 
 func main() {
 
@@ -102,10 +102,33 @@ func main() {
 		StreamCache: NewStreamCache(),
 	}
 
-	mux.Handle("POST /push/stream/{id}", handleMethod(ingester.handleRequest))
+	mux.HandleFunc("POST /push/stream/{id}", func(writer http.ResponseWriter, req *http.Request) {
+
+		if err := ingester.HandleRequest(req); err != nil {
+			writer.WriteHeader(http.StatusBadRequest)
+			writer.Write([]byte(err.Error() + "\r\n"))
+			return
+		}
+
+		writer.Header().Set("content-type", "text/plain")
+		writer.WriteHeader(http.StatusNoContent)
+	})
+
+	if token := strings.TrimSpace(os.Getenv("RPC_TOKEN")); token != "" {
+		mux.Handle("/rpc/", http.StripPrefix("/rpc", &rest_rpc.RPCHandler{
+			RPCProcedures: rest_rpc.RPCProcedures{
+				DB: dbops.New(dbconn),
+			},
+			Token: token,
+			AuthAttempts: rest_rpc.AuthAttempts{
+				Attempts: 10,
+				Period:   6 * time.Hour,
+			},
+		}))
+	}
 
 	srv := http.Server{
-		Handler: mux,
+		Handler: rootMiddleware(mux),
 		Addr:    ":" + port,
 	}
 
@@ -157,7 +180,7 @@ func syncDbSchema(dbconn *sql.DB) error {
 	return nil
 }
 
-func handleMethod(method func(*http.Request) error) http.Handler {
+func rootMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
 
 		if xff := req.Header.Get("x-forwarded-for"); xff != "" {
@@ -166,13 +189,6 @@ func handleMethod(method func(*http.Request) error) http.Handler {
 			req.RemoteAddr = host
 		}
 
-		if err := method(req); err != nil {
-			writer.WriteHeader(http.StatusBadRequest)
-			writer.Write([]byte(err.Error() + "\r\n"))
-			return
-		}
-
-		writer.Header().Set("content-type", "text/plain")
-		writer.WriteHeader(http.StatusNoContent)
+		next.ServeHTTP(writer, req)
 	})
 }

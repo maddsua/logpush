@@ -33,7 +33,7 @@ func (this *LogIngester) ServeHTTP(writer http.ResponseWriter, req *http.Request
 		req.RemoteAddr = host
 	}
 
-	if err := this.handleRequest(req); err != nil {
+	if err := this.HandleRequest(req); err != nil {
 		writer.Header().Set("content-type", "text/plain")
 		writer.WriteHeader(http.StatusBadRequest)
 		writer.Write([]byte(err.Error() + "\r\n"))
@@ -43,7 +43,7 @@ func (this *LogIngester) ServeHTTP(writer http.ResponseWriter, req *http.Request
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-func (this *LogIngester) handleRequest(req *http.Request) error {
+func (this *LogIngester) HandleRequest(req *http.Request) error {
 
 	streamID, err := uuid.Parse(req.PathValue("id"))
 	if err != nil {
@@ -243,9 +243,10 @@ func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID, txID uuid.UUID) []db
 			continue
 		}
 
-		var metadata json.RawMessage
+		var metadata sql.Null[[]byte]
 		if meta := mergeMeta(entry); meta != nil {
-			metadata, _ = json.Marshal(meta)
+			metadata.V, _ = json.Marshal(meta)
+			metadata.Valid = true
 		}
 
 		result = append(result, dbops.InsertStreamEntryParams{
@@ -263,12 +264,12 @@ func (batch *WebStream) ToTimescaleRows(streamID uuid.UUID, txID uuid.UUID) []db
 
 func mergeStreamLabels(stream *dbops.Stream, labels map[string]string) {
 
-	if len(stream.Labels) == 0 {
+	if !stream.Labels.Valid {
 		return
 	}
 
 	var streamLabels map[string]string
-	if err := json.Unmarshal(stream.Labels, &streamLabels); err != nil {
+	if err := json.Unmarshal(stream.Labels.V, &streamLabels); err != nil {
 		return
 	}
 
