@@ -3,6 +3,7 @@ package rest
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -29,7 +30,14 @@ func (this *RPCHandler) ServeHTTP(writer http.ResponseWriter, req *http.Request)
 		writeJsonError(writer, errors.New("rpc token required"), http.StatusUnauthorized)
 		return
 	} else if strings.ToLower(strings.TrimSpace(token)) != this.Token {
-		this.AuthAttempts.Increment(req.RemoteAddr)
+
+		if !this.AuthAttempts.Increment(req.RemoteAddr) {
+			slog.Warn("RPC: Client locked out with too many auth attempts",
+				slog.String("remote_addr", req.RemoteAddr),
+				slog.Duration("hold_time", this.AuthAttempts.Period),
+				slog.Int("max_attempts", this.AuthAttempts.Attempts))
+		}
+
 		writeJsonError(writer, errors.New("invalid rpc token"), http.StatusForbidden)
 		return
 	}
@@ -116,7 +124,7 @@ func (this *AuthAttempts) Locked(id string) (bool, *time.Time) {
 	return entry.Value > this.Attempts, &entry.Expires
 }
 
-func (this *AuthAttempts) Increment(id string) {
+func (this *AuthAttempts) Increment(id string) bool {
 
 	this.mtx.Lock()
 	defer this.mtx.Unlock()
@@ -147,4 +155,6 @@ func (this *AuthAttempts) Increment(id string) {
 
 		this.writesAfterCleanup = 0
 	}
+
+	return entry.Value <= this.Attempts
 }

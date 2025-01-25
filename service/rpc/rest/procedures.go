@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -76,6 +77,10 @@ func (this *RPCProcedures) StreamsDelete(writer http.ResponseWriter, req *http.R
 		return
 	}
 
+	slog.Info("RPC: Removed stream",
+		slog.String("remote_addr", req.RemoteAddr),
+		slog.String("stream_id", id.String()))
+
 	writer.WriteHeader(http.StatusOK)
 }
 
@@ -104,6 +109,11 @@ func (this *RPCProcedures) StreamsAdd(writer http.ResponseWriter, req *http.Requ
 		writeJsonError(writer, err, http.StatusInternalServerError)
 		return
 	}
+
+	slog.Info("RPC: Added stream",
+		slog.String("remote_addr", req.RemoteAddr),
+		slog.String("stream_id", entry.ID.String()),
+		slog.String("stream_name", entry.Name))
 
 	writeJsonData(writer, result)
 }
@@ -143,6 +153,10 @@ func (this *RPCProcedures) StreamsSetLabels(writer http.ResponseWriter, req *htt
 		}
 		return
 	}
+
+	slog.Info("RPC: Updated stream labels",
+		slog.String("remote_addr", req.RemoteAddr),
+		slog.String("stream_id", id.String()))
 
 	var result Stream
 	if err := result.ScanRow(entry); err != nil {
