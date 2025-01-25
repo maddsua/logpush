@@ -20,6 +20,9 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	_ "github.com/lib/pq"
 	"github.com/maddsua/logpush/service/dbops"
+	"github.com/maddsua/logpush/service/forwarder/loki"
+	"github.com/maddsua/logpush/service/forwarder/timescale"
+	"github.com/maddsua/logpush/service/ingester"
 	rest_rpc "github.com/maddsua/logpush/service/rpc/rest"
 
 	"github.com/joho/godotenv"
@@ -61,7 +64,7 @@ func main() {
 
 	slog.Info("STARTUP: DB connection OK")
 
-	lokiConn, err := ParseLokiUrl(os.Getenv("LOKI_URL"))
+	lokiConn, err := loki.ParseLokiUrl(os.Getenv("LOKI_URL"))
 	if err != nil {
 		slog.Error("STARTUP: Unable to parse LOKI_HOST",
 			slog.String("err", err.Error()))
@@ -95,11 +98,11 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	ingester := LogIngester{
+	ingester := ingester.Ingester{
 		Loki:        lokiConn,
 		DB:          dbops.New(dbconn),
-		Timescale:   &Timescale{DB: dbconn},
-		StreamCache: NewStreamCache(),
+		Timescale:   &timescale.Timescale{DB: dbconn},
+		StreamCache: ingester.NewStreamCache(),
 	}
 
 	mux.HandleFunc("POST /push/stream/{id}", func(writer http.ResponseWriter, req *http.Request) {
