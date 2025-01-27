@@ -38,3 +38,9 @@ update streams
 set labels = sqlc.narg(labels)
 where id = sqlc.arg(id)
 returning *;
+
+-- name: SetStreamName :one
+update streams
+set name = sqlc.arg(name)
+where id = sqlc.arg(id)
+returning *;

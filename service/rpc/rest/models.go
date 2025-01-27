@@ -14,7 +14,7 @@ import (
 	"github.com/maddsua/logpush/service/dbops"
 )
 
-const LabelNameFormat = `(?i)^[a-z_\-0-9]{1,50}$`
+const LabelNameFormat = `(?i)^[a-z_\-0-9]{2,50}$`
 const LabelValueMaxSize = 250
 const MaxStaticLabels = 25
 

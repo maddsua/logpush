@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/maddsua/logpush/service/dbops"
@@ -98,7 +99,7 @@ func (this *RPCProcedures) StreamsAdd(writer http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	if !AppNameExpr.MatchString(params.Name) {
+	if params.Name = strings.TrimSpace(params.Name); !AppNameExpr.MatchString(params.Name) {
 		err := fmt.Errorf(`stream name doesn't match the format: '%s'`, AppNameFormat)
 		writeJsonError(writer, err, http.StatusBadRequest)
 		return
@@ -175,6 +176,62 @@ func (this *RPCProcedures) StreamsSetLabels(writer http.ResponseWriter, req *htt
 	slog.Info("RPC: Updated stream labels",
 		slog.String("remote_addr", req.RemoteAddr),
 		slog.String("stream_id", id.String()))
+
+	var result Stream
+	if err := result.ScanRow(entry); err != nil {
+		writeJsonError(writer, err, http.StatusInternalServerError)
+		return
+	}
+
+	writeJsonData(writer, result)
+}
+
+func (this *RPCProcedures) StreamsSetName(writer http.ResponseWriter, req *http.Request) {
+
+	id, err := uuid.Parse(req.PathValue("id"))
+	if err != nil {
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
+	if err := assetJSON(req); err != nil {
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
+	var payload map[string]string
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
+	newName, has := payload["name"]
+	if !has {
+		err := fmt.Errorf(`field "name" is required`)
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
+	if newName = strings.TrimSpace(newName); !AppNameExpr.MatchString(newName) {
+		err := fmt.Errorf(`stream name doesn't match the format: '%s'`, AppNameFormat)
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
+	entry, err := this.DB.SetStreamName(req.Context(), dbops.SetStreamNameParams{ID: id, Name: newName})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			writeJsonError(writer, errors.New("stream doesn't exist"), http.StatusNotFound)
+		} else {
+			writeJsonError(writer, err, http.StatusInternalServerError)
+		}
+		return
+	}
+
+	slog.Info("RPC: Updated stream name",
+		slog.String("remote_addr", req.RemoteAddr),
+		slog.String("stream_id", id.String()),
+		slog.String("value", newName))
 
 	var result Stream
 	if err := result.ScanRow(entry); err != nil {

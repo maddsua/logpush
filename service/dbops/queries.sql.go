@@ -163,3 +163,27 @@ func (q *Queries) SetStreamLabels(ctx context.Context, arg SetStreamLabelsParams
 	)
 	return i, err
 }
+
+const setStreamName = `-- name: SetStreamName :one
+update streams
+set name = $1
+where id = $2
+returning id, created_at, name, labels
+`
+
+type SetStreamNameParams struct {
+	Name string
+	ID   uuid.UUID
+}
+
+func (q *Queries) SetStreamName(ctx context.Context, arg SetStreamNameParams) (Stream, error) {
+	row := q.db.QueryRowContext(ctx, setStreamName, arg.Name, arg.ID)
+	var i Stream
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Labels,
+	)
+	return i, err
+}

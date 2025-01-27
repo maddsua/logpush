@@ -57,7 +57,8 @@ func (this *RPCHandler) initMux() {
 	this.mux.HandleFunc("PUT /streams", this.StreamsAdd)
 	this.mux.HandleFunc("GET /streams/{id}", this.StreamsGet)
 	this.mux.HandleFunc("DELETE /streams/{id}", this.StreamsDelete)
-	this.mux.HandleFunc("POST /streams/{id}/labels", this.StreamsSetLabels)
+	this.mux.HandleFunc("PATCH /streams/{id}/labels", this.StreamsSetLabels)
+	this.mux.HandleFunc("PATCH /streams/{id}/name", this.StreamsSetName)
 }
 
 func writeJsonData(writer http.ResponseWriter, data any) {
