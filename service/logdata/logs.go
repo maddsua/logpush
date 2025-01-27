@@ -46,23 +46,25 @@ func (um UnixMilli) Time(sequence int) time.Time {
 	return ts.Add(time.Duration(sequence))
 }
 
-func MergeStreamLabels(stream *dbops.Stream, labels map[string]string) {
+func MergeStreamLabels(dst map[string]string, instance *dbops.Stream) map[string]string {
 
-	if !stream.Labels.Valid {
-		return
+	if !instance.Labels.Valid {
+		return dst
 	}
 
 	var streamLabels map[string]string
-	if err := json.Unmarshal(stream.Labels.V, &streamLabels); err != nil {
-		return
+	if err := json.Unmarshal(instance.Labels.V, &streamLabels); err != nil {
+		return dst
 	}
 
 	for key, val := range streamLabels {
-		if mval, has := labels[key]; has {
-			labels["_opt_"+key] = mval
+		if mval, has := dst[key]; has {
+			dst["_opt_"+key] = mval
 		}
-		labels[key] = val
+		dst[key] = val
 	}
+
+	return dst
 }
 
 func CopyMetaFields(dst map[string]string, src map[string]string) {

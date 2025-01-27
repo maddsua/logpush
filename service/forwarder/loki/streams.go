@@ -10,20 +10,20 @@ import (
 	"github.com/maddsua/logpush/service/logdata"
 )
 
-func webStreamToLabeled(stream *streams.WebStream, streamSource *dbops.Stream, txID uuid.UUID) []LokiStream {
+func webStreamToLabeled(logStream *streams.WebStream, instance *dbops.Stream, txID uuid.UUID) []LokiStream {
 
 	baseLabels := map[string]string{
 		"logpush_source": "web",
-		"service_name":   streamSource.Name,
+		"service_name":   instance.Name,
 		"logpush_tx":     txID.String(),
 	}
 
-	logdata.MergeStreamLabels(streamSource, baseLabels)
-	logdata.CopyMetaFields(baseLabels, stream.Meta)
+	logdata.MergeStreamLabels(baseLabels, instance)
+	logdata.CopyMetaFields(baseLabels, logStream.Meta)
 
 	var result []LokiStream
 
-	for idx, entry := range stream.Entries {
+	for idx, entry := range logStream.Entries {
 
 		if entry.Message = strings.TrimSpace(entry.Message); entry.Message == "" {
 			continue
@@ -48,19 +48,19 @@ func webStreamToLabeled(stream *streams.WebStream, streamSource *dbops.Stream, t
 	return result
 }
 
-func webStreamToStructured(stream *streams.WebStream, streamSource *dbops.Stream, txID uuid.UUID) LokiStream {
+func webStreamToStructured(logStream *streams.WebStream, instance *dbops.Stream, txID uuid.UUID) LokiStream {
 
 	labels := map[string]string{
 		"logpush_source": "web",
-		"service_name":   streamSource.Name,
+		"service_name":   instance.Name,
 		"logpush_tx":     txID.String(),
 	}
 
-	logdata.MergeStreamLabels(streamSource, labels)
+	logdata.MergeStreamLabels(labels, instance)
 
 	metaFields := map[string]string{}
 
-	for key, val := range stream.Meta {
+	for key, val := range logStream.Meta {
 
 		if _, has := labels[key]; has {
 			continue
@@ -75,7 +75,7 @@ func webStreamToStructured(stream *streams.WebStream, streamSource *dbops.Stream
 	}
 
 	var streamValues [][]any
-	for idx, entry := range stream.Entries {
+	for idx, entry := range logStream.Entries {
 
 		if entry.Message = strings.TrimSpace(entry.Message); entry.Message == "" {
 			continue
