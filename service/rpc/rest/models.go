@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/maddsua/logpush/service/dbops"
 )
+
+const LabelNameFormat = `(?i)^[a-z_\-0-9]{1,50}$`
+const LabelValueMaxSize = 250
+const MaxStaticLabels = 25
+
+const AppNameFormat = `^[\w\d \-\_]{3,50}$`
+
+var LabelNameExpr = regexp.MustCompile(LabelNameFormat)
+var AppNameExpr = regexp.MustCompile(AppNameFormat)
 
 type Date struct {
 	time.Time

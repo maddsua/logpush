@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -97,6 +98,17 @@ func (this *RPCProcedures) StreamsAdd(writer http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	if !AppNameExpr.MatchString(params.Name) {
+		err := fmt.Errorf(`stream name doesn't match the format: '%s'`, AppNameFormat)
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
+	if err := validateStaticLabels(params.Labels); err != nil {
+		writeJsonError(writer, err, http.StatusBadRequest)
+		return
+	}
+
 	entry, err := this.DB.AddStream(req.Context(), params.Row())
 	if err != nil {
 		//	todo: handle id/name collision
@@ -131,20 +143,26 @@ func (this *RPCProcedures) StreamsSetLabels(writer http.ResponseWriter, req *htt
 		return
 	}
 
-	var payload map[string]string
-	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+	var labels map[string]string
+	if err := json.NewDecoder(req.Body).Decode(&labels); err != nil {
 		writeJsonError(writer, err, http.StatusBadRequest)
 		return
 	}
 
-	var labels sql.Null[[]byte]
-	if len(payload) > 0 {
-		data, _ := json.Marshal(payload)
-		labels.V = data
-		labels.Valid = true
+	var labelsJSONB sql.Null[[]byte]
+	if len(labels) > 0 {
+
+		if err := validateStaticLabels(labels); err != nil {
+			writeJsonError(writer, err, http.StatusBadRequest)
+			return
+		}
+
+		data, _ := json.Marshal(labels)
+		labelsJSONB.V = data
+		labelsJSONB.Valid = true
 	}
 
-	entry, err := this.DB.SetStreamLabels(req.Context(), dbops.SetStreamLabelsParams{ID: id, Labels: labels})
+	entry, err := this.DB.SetStreamLabels(req.Context(), dbops.SetStreamLabelsParams{ID: id, Labels: labelsJSONB})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			writeJsonError(writer, errors.New("stream doesn't exist"), http.StatusNotFound)
