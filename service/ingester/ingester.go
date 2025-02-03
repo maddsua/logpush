@@ -23,6 +23,16 @@ type Ingester struct {
 	Loki        *loki.Loki
 	Timescale   *timescale.Timescale
 	StreamCache *StreamCache
+	Opts        IngesterOptions
+}
+
+type IngesterOptions struct {
+	MaxLabels       int
+	MaxLabelNameLen int
+	MaxLabelLen     int
+	MaxMessages     int
+	MaxMessageLen   int
+	KeepEmptyLabels bool
 }
 
 func (this *Ingester) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
@@ -82,6 +92,60 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 		return errors.New("service not found")
 	}
 
+	var truncateLabels = func(labels map[string]string, counter *int) {
+
+		var discard bool
+
+		for key, val := range labels {
+
+			if discard {
+				delete(labels, key)
+				continue
+			}
+
+			if this.Opts.MaxLabels > 0 && *counter > this.Opts.MaxLabels {
+				//	todo: log differently when working with entry labels
+				slog.Warn("WEB STREAM: Discarding excess labels",
+					slog.String("stream_id", logStream.ID.String()),
+					slog.Int("discard_labels", len(labels)-this.Opts.MaxLabels),
+					slog.String("remote_addr", req.RemoteAddr))
+				discard = true
+				continue
+			}
+
+			if this.Opts.MaxLabelNameLen > 0 && len(key) > this.Opts.MaxLabelNameLen {
+
+				slog.Warn("WEB STREAM: Label name truncated",
+					slog.String("stream_id", logStream.ID.String()),
+					slog.String("label", key),
+					slog.String("remote_addr", req.RemoteAddr))
+
+				trunc := key[this.Opts.MaxLabelNameLen:] + "___"
+				delete(labels, key)
+				labels[trunc] = val
+				key = trunc
+			}
+
+			val = strings.TrimSpace(val)
+			if val == "" {
+
+				if !this.Opts.KeepEmptyLabels {
+					delete(labels, key)
+					continue
+				}
+
+				val = "[null]"
+				labels[key] = val
+			}
+
+			if this.Opts.MaxLabelLen > 0 && len(val) > this.Opts.MaxLabelLen {
+				labels[key] = val[this.Opts.MaxLabelLen:] + "..."
+			}
+
+			*counter++
+		}
+	}
+
 	contentType := req.Header.Get("content-type")
 	switch {
 	case strings.Contains(contentType, "json"):
@@ -99,6 +163,29 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 			slog.Int("count", len(payload.Entries)),
 			slog.String("stream_id", logStream.ID.String()),
 			slog.String("remote_addr", req.RemoteAddr))
+
+		var totalLabelCount int
+		truncateLabels(payload.Meta, &totalLabelCount)
+
+		if this.Opts.MaxMessages > 0 && len(payload.Entries) > this.Opts.MaxMessages {
+
+			payload.Entries = payload.Entries[this.Opts.MaxMessages:]
+
+			slog.Warn("WEB STREAM: Discarding excess entries",
+				slog.String("stream_id", logStream.ID.String()),
+				slog.Int("discard_labels", len(payload.Entries)-this.Opts.MaxMessages),
+				slog.String("remote_addr", req.RemoteAddr))
+		}
+
+		for idx, entry := range payload.Entries {
+
+			scopedLabelCount := totalLabelCount
+			truncateLabels(payload.Entries[idx].Meta, &scopedLabelCount)
+
+			if this.Opts.MaxMessageLen > 0 && len(entry.Message) > this.Opts.MaxMessageLen {
+				payload.Entries[idx].Message = entry.Message[this.Opts.MaxMessageLen:] + "..."
+			}
+		}
 
 		txID := uuid.New()
 
