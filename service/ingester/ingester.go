@@ -92,9 +92,25 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 		return errors.New("service not found")
 	}
 
+	var elipsis = func(token string, maxLen int) (string, int) {
+
+		if maxLen <= 0 {
+			return "", 0
+		}
+
+		if maxLen <= len(token) {
+			return token, 0
+		}
+
+		return token, 3
+	}
+
 	var truncateLabels = func(labels map[string]string, counter *int) {
 
 		var discard bool
+
+		nameTrunkToken, nameTrunkTrim := elipsis("___", this.Opts.MaxLabelNameLen)
+		valueTruncToken, valueTruncTrim := elipsis("...", this.Opts.MaxLabelLen)
 
 		for key, val := range labels {
 
@@ -120,7 +136,7 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 					slog.String("label", key),
 					slog.String("remote_addr", req.RemoteAddr))
 
-				trunc := key[this.Opts.MaxLabelNameLen:] + "___"
+				trunc := key[:this.Opts.MaxLabelNameLen-nameTrunkTrim] + nameTrunkToken
 				delete(labels, key)
 				labels[trunc] = val
 				key = trunc
@@ -139,7 +155,7 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 			}
 
 			if this.Opts.MaxLabelLen > 0 && len(val) > this.Opts.MaxLabelLen {
-				labels[key] = val[this.Opts.MaxLabelLen:] + "..."
+				labels[key] = val[:this.Opts.MaxLabelLen-valueTruncTrim] + valueTruncToken
 			}
 
 			*counter++
@@ -169,7 +185,7 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 
 		if this.Opts.MaxMessages > 0 && len(payload.Entries) > this.Opts.MaxMessages {
 
-			payload.Entries = payload.Entries[this.Opts.MaxMessages:]
+			payload.Entries = payload.Entries[:this.Opts.MaxMessages]
 
 			slog.Warn("WEB STREAM: Discarding excess entries",
 				slog.String("stream_id", logStream.ID.String()),
@@ -177,13 +193,15 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 				slog.String("remote_addr", req.RemoteAddr))
 		}
 
+		msgTruncToken, msgTruncTrim := elipsis("...", this.Opts.MaxMessageLen)
+
 		for idx, entry := range payload.Entries {
 
 			scopedLabelCount := totalLabelCount
 			truncateLabels(payload.Entries[idx].Meta, &scopedLabelCount)
 
 			if this.Opts.MaxMessageLen > 0 && len(entry.Message) > this.Opts.MaxMessageLen {
-				payload.Entries[idx].Message = entry.Message[this.Opts.MaxMessageLen:] + "..."
+				payload.Entries[idx].Message = entry.Message[:this.Opts.MaxMessageLen-msgTruncTrim] + msgTruncToken
 			}
 		}
 
