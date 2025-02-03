@@ -57,7 +57,7 @@ func main() {
 	}
 
 	if err := dbconn.Ping(); err != nil {
-		slog.Error("STARTUP: Unable to open DB connection",
+		slog.Error("STARTUP: Unable to connect to the DB",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
