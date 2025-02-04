@@ -153,10 +153,10 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 					slog.String("label", key),
 					slog.String("remote_addr", req.RemoteAddr))
 
-				trunc := key[:this.Opts.MaxLabelNameLen-nameTrunkTrim] + nameTrunkToken
+				//	reset record with a truncated key
 				delete(labels, key)
-				labels[trunc] = val
-				key = trunc
+				key = key[:this.Opts.MaxLabelNameLen-nameTrunkTrim] + nameTrunkToken
+				labels[key] = val
 			}
 
 			val = strings.TrimSpace(val)
