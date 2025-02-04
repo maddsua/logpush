@@ -57,7 +57,7 @@ func main() {
 	}
 
 	if err := dbconn.Ping(); err != nil {
-		slog.Error("STARTUP: Unable to open DB connection",
+		slog.Error("STARTUP: Unable to connect to the DB",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
@@ -103,6 +103,14 @@ func main() {
 		DB:          dbops.New(dbconn),
 		Timescale:   &timescale.Timescale{DB: dbconn},
 		StreamCache: ingester.NewStreamCache(),
+		Opts: ingester.IngesterOptions{
+			MaxLabels:       envInt("INGESTER_MAX_LABELS"),
+			MaxLabelNameLen: envInt("INGESTER_MAX_LABEL_NAME_LEN"),
+			MaxLabelLen:     envInt("INGESTER_MAX_LABEL_LEN"),
+			MaxMessages:     envInt("INGESTER_MAX_MESSAGES"),
+			MaxMessageLen:   envInt("INGESTER_MAX_MESSAGE_LEN"),
+			KeepEmptyLabels: strings.ToLower(os.Getenv("INGESTER_KEEP_EMPTY_LABELS")) != "false",
+		},
 	}
 
 	mux.HandleFunc("POST /push/stream/{id}", func(writer http.ResponseWriter, req *http.Request) {
@@ -194,4 +202,19 @@ func rootMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(writer, req)
 	})
+}
+
+func envInt(name string) int {
+
+	envVal := os.Getenv(name)
+	if envVal == "" {
+		return 0
+	}
+
+	val, err := strconv.Atoi(envVal)
+	if err != nil {
+		return 0
+	}
+
+	return val
 }

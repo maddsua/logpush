@@ -42,7 +42,6 @@ func (um UnixMilli) Time(sequence int) time.Time {
 		ts = time.Now()
 	}
 
-	//	todo: ensure correct result
 	return ts.Add(time.Duration(sequence))
 }
 

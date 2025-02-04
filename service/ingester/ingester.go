@@ -23,6 +23,16 @@ type Ingester struct {
 	Loki        *loki.Loki
 	Timescale   *timescale.Timescale
 	StreamCache *StreamCache
+	Opts        IngesterOptions
+}
+
+type IngesterOptions struct {
+	MaxLabels       int
+	MaxLabelNameLen int
+	MaxLabelLen     int
+	MaxMessages     int
+	MaxMessageLen   int
+	KeepEmptyLabels bool
 }
 
 func (this *Ingester) ServeHTTP(writer http.ResponseWriter, req *http.Request) {
@@ -82,6 +92,97 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 		return errors.New("service not found")
 	}
 
+	var elipsis = func(token string, maxLen int) (string, int) {
+
+		if maxLen <= 0 {
+			return "", 0
+		}
+
+		if maxLen <= len(token) {
+			return token, 0
+		}
+
+		return token, 3
+	}
+
+	var streamLabelsCount int
+
+	var truncateLabels = func(labels map[string]string, isStream bool) {
+
+		var discardWarn bool
+		var count int
+
+		if !isStream {
+			count = streamLabelsCount
+		}
+
+		nameTrunkToken, nameTrunkTrim := elipsis("___", this.Opts.MaxLabelNameLen)
+		valueTruncToken, valueTruncTrim := elipsis("...", this.Opts.MaxLabelLen)
+
+		for key, val := range labels {
+
+			if this.Opts.MaxLabels > 0 && count >= this.Opts.MaxLabels {
+
+				if !discardWarn {
+
+					if isStream {
+						slog.Warn("WEB STREAM: Discard excess stream labels",
+							slog.String("stream_id", logStream.ID.String()),
+							slog.Int("count", len(labels)-this.Opts.MaxLabels),
+							slog.Int("max", this.Opts.MaxLabels),
+							slog.String("remote_addr", req.RemoteAddr))
+					} else {
+						slog.Warn("WEB STREAM: Discard excess entry labels",
+							slog.String("stream_id", logStream.ID.String()),
+							slog.Int("count", len(labels)-(this.Opts.MaxLabels-streamLabelsCount)),
+							slog.Int("max", this.Opts.MaxLabels-streamLabelsCount),
+							slog.String("remote_addr", req.RemoteAddr))
+					}
+
+					discardWarn = true
+				}
+
+				delete(labels, key)
+				continue
+			}
+
+			if this.Opts.MaxLabelNameLen > 0 && len(key) > this.Opts.MaxLabelNameLen {
+
+				slog.Warn("WEB STREAM: Label name truncated",
+					slog.String("stream_id", logStream.ID.String()),
+					slog.String("label", key),
+					slog.String("remote_addr", req.RemoteAddr))
+
+				//	reset record with a truncated key
+				delete(labels, key)
+				key = key[:this.Opts.MaxLabelNameLen-nameTrunkTrim] + nameTrunkToken
+				labels[key] = val
+			}
+
+			val = strings.TrimSpace(val)
+			if val == "" {
+
+				if !this.Opts.KeepEmptyLabels {
+					delete(labels, key)
+					continue
+				}
+
+				val = "[null]"
+				labels[key] = val
+			}
+
+			if this.Opts.MaxLabelLen > 0 && len(val) > this.Opts.MaxLabelLen {
+				labels[key] = val[:this.Opts.MaxLabelLen-valueTruncTrim] + valueTruncToken
+			}
+
+			count++
+		}
+
+		if isStream {
+			streamLabelsCount = count
+		}
+	}
+
 	contentType := req.Header.Get("content-type")
 	switch {
 	case strings.Contains(contentType, "json"):
@@ -95,10 +196,33 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 			return errors.New("invalid batch payload")
 		}
 
-		slog.Debug("WEB STREAM: Ingesting entries",
+		slog.Debug("WEB STREAM: Ingest entries",
 			slog.Int("count", len(payload.Entries)),
 			slog.String("stream_id", logStream.ID.String()),
 			slog.String("remote_addr", req.RemoteAddr))
+
+		truncateLabels(payload.Meta, true)
+
+		if this.Opts.MaxMessages > 0 && len(payload.Entries) > this.Opts.MaxMessages {
+
+			slog.Warn("WEB STREAM: Discard excess entries",
+				slog.String("stream_id", logStream.ID.String()),
+				slog.Int("count", len(payload.Entries)-this.Opts.MaxMessages),
+				slog.String("remote_addr", req.RemoteAddr))
+
+			payload.Entries = payload.Entries[:this.Opts.MaxMessages]
+		}
+
+		msgTruncToken, msgTruncTrim := elipsis("...", this.Opts.MaxMessageLen)
+
+		for idx, entry := range payload.Entries {
+
+			truncateLabels(payload.Entries[idx].Meta, false)
+
+			if this.Opts.MaxMessageLen > 0 && len(entry.Message) > this.Opts.MaxMessageLen {
+				payload.Entries[idx].Message = entry.Message[:this.Opts.MaxMessageLen-msgTruncTrim] + msgTruncToken
+			}
+		}
 
 		txID := uuid.New()
 
