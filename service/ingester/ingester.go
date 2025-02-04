@@ -105,27 +105,44 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 		return token, 3
 	}
 
-	var truncateLabels = func(labels map[string]string, counter *int) {
+	var streamLabelsCount int
 
-		var discard bool
+	var truncateLabels = func(labels map[string]string, isStream bool) {
+
+		var discardWarn bool
+		var count int
+
+		if !isStream {
+			count = streamLabelsCount
+		}
 
 		nameTrunkToken, nameTrunkTrim := elipsis("___", this.Opts.MaxLabelNameLen)
 		valueTruncToken, valueTruncTrim := elipsis("...", this.Opts.MaxLabelLen)
 
 		for key, val := range labels {
 
-			if discard {
-				delete(labels, key)
-				continue
-			}
+			if this.Opts.MaxLabels > 0 && count >= this.Opts.MaxLabels {
 
-			if this.Opts.MaxLabels > 0 && *counter > this.Opts.MaxLabels {
-				//	todo: log differently when working with entry labels
-				slog.Warn("WEB STREAM: Discarding excess labels",
-					slog.String("stream_id", logStream.ID.String()),
-					slog.Int("discard_labels", len(labels)-this.Opts.MaxLabels),
-					slog.String("remote_addr", req.RemoteAddr))
-				discard = true
+				if !discardWarn {
+
+					if isStream {
+						slog.Warn("WEB STREAM: Discard excess stream labels",
+							slog.String("stream_id", logStream.ID.String()),
+							slog.Int("count", len(labels)-this.Opts.MaxLabels),
+							slog.Int("max", this.Opts.MaxLabels),
+							slog.String("remote_addr", req.RemoteAddr))
+					} else {
+						slog.Warn("WEB STREAM: Discard excess entry labels",
+							slog.String("stream_id", logStream.ID.String()),
+							slog.Int("count", len(labels)-(this.Opts.MaxLabels-streamLabelsCount)),
+							slog.Int("max", this.Opts.MaxLabels-streamLabelsCount),
+							slog.String("remote_addr", req.RemoteAddr))
+					}
+
+					discardWarn = true
+				}
+
+				delete(labels, key)
 				continue
 			}
 
@@ -158,7 +175,11 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 				labels[key] = val[:this.Opts.MaxLabelLen-valueTruncTrim] + valueTruncToken
 			}
 
-			*counter++
+			count++
+		}
+
+		if isStream {
+			streamLabelsCount = count
 		}
 	}
 
@@ -175,30 +196,28 @@ func (this *Ingester) HandleRequest(req *http.Request) error {
 			return errors.New("invalid batch payload")
 		}
 
-		slog.Debug("WEB STREAM: Ingesting entries",
+		slog.Debug("WEB STREAM: Ingest entries",
 			slog.Int("count", len(payload.Entries)),
 			slog.String("stream_id", logStream.ID.String()),
 			slog.String("remote_addr", req.RemoteAddr))
 
-		var totalLabelCount int
-		truncateLabels(payload.Meta, &totalLabelCount)
+		truncateLabels(payload.Meta, true)
 
 		if this.Opts.MaxMessages > 0 && len(payload.Entries) > this.Opts.MaxMessages {
 
-			payload.Entries = payload.Entries[:this.Opts.MaxMessages]
-
-			slog.Warn("WEB STREAM: Discarding excess entries",
+			slog.Warn("WEB STREAM: Discard excess entries",
 				slog.String("stream_id", logStream.ID.String()),
-				slog.Int("discard_labels", len(payload.Entries)-this.Opts.MaxMessages),
+				slog.Int("count", len(payload.Entries)-this.Opts.MaxMessages),
 				slog.String("remote_addr", req.RemoteAddr))
+
+			payload.Entries = payload.Entries[:this.Opts.MaxMessages]
 		}
 
 		msgTruncToken, msgTruncTrim := elipsis("...", this.Opts.MaxMessageLen)
 
 		for idx, entry := range payload.Entries {
 
-			scopedLabelCount := totalLabelCount
-			truncateLabels(payload.Entries[idx].Meta, &scopedLabelCount)
+			truncateLabels(payload.Entries[idx].Meta, false)
 
 			if this.Opts.MaxMessageLen > 0 && len(entry.Message) > this.Opts.MaxMessageLen {
 				payload.Entries[idx].Message = entry.Message[:this.Opts.MaxMessageLen-msgTruncTrim] + msgTruncToken
