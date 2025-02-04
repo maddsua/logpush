@@ -31,13 +31,13 @@ The basic features are:
 - Log stream authentication (aka apps can't push under some other app's names)
 - Label processing
 - Data output to Grafana Loki or Postgres/TimescaleDB
+- Stream size / log volume limits
 
 ### Should you use it?
 
 If you have a ton of different apps shitting logs all over different hosting platforms, probably yes.
 
 And if you find this project useful give it a star dawg
-
 
 ## Deploying
 
@@ -53,3 +53,9 @@ Use the docker image and you're all set.
 - `LOKI_STRUCTURED_METADATA`: `true|false|null` - Use loki structured metadata instead of labels for everything
 - `DB_MIGRATE`: `true|false|null` - Run DB migration on startup
 - `RPC_TOKEN`: `{string}|null` - Management API token
+- `INGESTER_MAX_LABELS`: `{int|null}` - Max number of labels per ingested stream (it's shared between `stream` and `stream.entry[idx]`; having multiple entries doesn't exhaust this quota)
+- `INGESTER_MAX_LABEL_NAME_LEN`: `{int|null}` - Max length of a label name (will truncate label names)
+- `INGESTER_MAX_LABEL_LEN`: `{int|null}` - Max length of a label value (will truncate label values)
+- `INGESTER_MAX_MESSAGES`: `{int|null}` - Max number of labels per ingested stream (will truncate stream)
+- `INGESTER_MAX_MESSAGE_LEN`: `{int|null}` - Max ingested message length (will truncate messages)
+- `INGESTER_KEEP_EMPTY_LABELS`: `{bool}|null` - Keep empty labels (replace with string literal "`[null]`")
