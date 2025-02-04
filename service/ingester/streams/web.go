@@ -3,9 +3,8 @@ package streams
 import "github.com/maddsua/logpush/service/logdata"
 
 type WebStream struct {
-	ServiceID string            `json:"service_id"`
-	Meta      map[string]string `json:"meta"`
-	Entries   []WebLogEntry     `json:"entries"`
+	Meta    map[string]string `json:"meta"`
+	Entries []WebLogEntry     `json:"entries"`
 }
 
 type WebLogEntry struct {
