@@ -39,7 +39,7 @@ func main() {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	}
 
-	if strings.ToLower(os.Getenv("DEBUG")) == "true" {
+	if envBool("DEBUG") {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 		slog.Debug("Logging enabled")
 	}
@@ -64,7 +64,10 @@ func main() {
 
 	slog.Info("STARTUP: DB connection OK")
 
-	lokiConn, err := loki.ParseLokiUrl(os.Getenv("LOKI_URL"))
+	lokiConn, err := loki.ParseLokiUrl(os.Getenv("LOKI_URL"), loki.LokiOptions{
+		UseStructMeta: envBoolNf("LOKI_STRUCTURED_METADATA"),
+		StrictLabels:  envBoolNf("LOKI_STRICT_LABELS"),
+	})
 	if err != nil {
 		slog.Error("STARTUP: Unable to parse LOKI_HOST",
 			slog.String("err", err.Error()))
@@ -85,7 +88,7 @@ func main() {
 		slog.Info("STARTUP: Loki not configured. Using Timescale/Postgres")
 	}
 
-	if strings.ToLower(os.Getenv("DB_MIGRATE")) == "true" {
+	if envBool("DB_MIGRATEDEBUG") {
 
 		slog.Info("STARTUP: Running DB migrations")
 
@@ -109,7 +112,7 @@ func main() {
 			MaxLabelLen:     envInt("INGESTER_MAX_LABEL_LEN"),
 			MaxMessages:     envInt("INGESTER_MAX_MESSAGES"),
 			MaxMessageLen:   envInt("INGESTER_MAX_MESSAGE_LEN"),
-			KeepEmptyLabels: strings.ToLower(os.Getenv("INGESTER_KEEP_EMPTY_LABELS")) != "false",
+			KeepEmptyLabels: envBoolNf("INGESTER_KEEP_EMPTY_LABELS"),
 		},
 	}
 
@@ -217,4 +220,12 @@ func envInt(name string) int {
 	}
 
 	return val
+}
+
+func envBool(name string) bool {
+	return strings.ToLower(os.Getenv(name)) == "true"
+}
+
+func envBoolNf(name string) bool {
+	return strings.ToLower(os.Getenv(name)) != "false"
 }

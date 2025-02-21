@@ -51,6 +51,7 @@ Use the docker image and you're all set.
 - `DATABASE_URL`: `{string}` - PostgreSQL/TImescaleDB database URL
 - `LOKI_URL`: `{string}|null` - Loki HTTP API url (only schema and host are used)
 - `LOKI_STRUCTURED_METADATA`: `true|false|null` - Use loki structured metadata instead of labels for everything
+- `LOKI_STRICT_LABELS`: `true|false|null` - Restrict label expressions to a basic character set (latin letters, numbers, commonly used symbols)
 - `DB_MIGRATE`: `true|false|null` - Run DB migration on startup
 - `RPC_TOKEN`: `{string}|null` - Management API token
 - `INGESTER_MAX_LABELS`: `{int|null}` - Max number of labels per ingested stream (it's shared between `stream` and `stream.entry[idx]`; having multiple entries doesn't exhaust this quota)

@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -17,12 +16,17 @@ import (
 )
 
 type Loki struct {
-	url           string
-	UseStructMeta bool
-	Retries       int
+	LokiOptions
+	url string
 }
 
-func ParseLokiUrl(params string) (*Loki, error) {
+type LokiOptions struct {
+	Retries       int
+	UseStructMeta bool
+	StrictLabels  bool
+}
+
+func ParseLokiUrl(params string, opts LokiOptions) (*Loki, error) {
 
 	if params = strings.TrimSpace(params); params == "" {
 		return nil, nil
@@ -47,8 +51,8 @@ func ParseLokiUrl(params string) (*Loki, error) {
 	}
 
 	return &Loki{
-		url:           lokiUrl.String(),
-		UseStructMeta: strings.ToLower(os.Getenv("LOKI_STRUCTURED_METADATA")) != "false",
+		LokiOptions: opts,
+		url:         lokiUrl.String(),
 	}, nil
 }
 
@@ -92,7 +96,7 @@ func (this *Loki) retryNumber() int {
 
 func (this *Loki) PushStreams(streams []LokiStream) error {
 
-	payload, err := lokiSerializeStreams(streams)
+	payload, err := this.serializeStreams(streams)
 	if err != nil {
 		return err
 	}
@@ -136,11 +140,11 @@ func (this *Loki) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID, remoteAd
 
 	var streams []LokiStream
 	if this.UseStructMeta {
-		if next := webStreamToStructured(payload, streamSource, txID); len(next.Values) > 0 {
+		if next := this.webStreamToStructured(payload, streamSource, txID); len(next.Values) > 0 {
 			streams = []LokiStream{next}
 		}
 	} else {
-		streams = webStreamToLabeled(payload, streamSource, txID)
+		streams = this.webStreamToLabeled(payload, streamSource, txID)
 	}
 
 	if len(streams) == 0 {
@@ -171,7 +175,7 @@ func (this *Loki) IngestWeb(streamSource *dbops.Stream, txID uuid.UUID, remoteAd
 		slog.String("remote_addr", remoteAddr))
 }
 
-func lokiSerializeStreams(streams []LokiStream) (*bytes.Buffer, error) {
+func (this *Loki) serializeStreams(streams []LokiStream) (*bytes.Buffer, error) {
 
 	payload := LokiHttpBatch{Streams: streams}
 
