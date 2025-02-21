@@ -21,7 +21,7 @@ const fakeHandler = async (request: Request, waitUntil: (task: Promise<any>) => 
 const fakeProcedure = async (_request: Request, logger: Logger): Promise<Response> => {
 
 	logger.info('Processing lead form request');
-	logger.error('Some important API is down, rerouting', { api_down: 'catpics' });
+	logger.error('Some important API is down, rerouting', { api_down: 'catpics', sus_field: 'ok\0;drop table;' });
 	logger.warn('Rerouting to an internal API', { timeout: 3600 });
 	logger.info('Recaptcha OK', { score: 0.9 });
 
