@@ -2,6 +2,7 @@ package loki
 
 import (
 	"log/slog"
+	"unicode"
 )
 
 func filterLabelFormat(labels map[string]string) {
@@ -76,18 +77,14 @@ func stripLabelValue(key string) string {
 
 	for _, next := range key {
 
-		switch next {
-		case '\\':
+		switch {
+		case next == '\\':
 			stripped += "/"
-			continue
-		}
-
-		if next >= 0x20 && next <= 0x7E {
+		case unicode.IsPrint(next):
 			stripped += string(next)
-			continue
+		default:
+			stripped += "?"
 		}
-
-		stripped += "?"
 	}
 
 	return stripped
