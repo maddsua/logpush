@@ -10,7 +10,7 @@ import (
 	"github.com/maddsua/logpush/service/logdata"
 )
 
-func webStreamToLabeled(logStream *streams.WebStream, instance *dbops.Stream, txID uuid.UUID) []LokiStream {
+func (this *Loki) webStreamToLabeled(logStream *streams.WebStream, instance *dbops.Stream, txID uuid.UUID) []LokiStream {
 
 	baseLabels := map[string]string{
 		"logpush_source": "web",
@@ -34,6 +34,10 @@ func webStreamToLabeled(logStream *streams.WebStream, instance *dbops.Stream, tx
 		logdata.CopyMetaFields(labels, entry.Meta)
 		labels["detected_level"] = entry.Level.String()
 
+		if this.StrictLabels {
+			filterLabelFormat(labels)
+		}
+
 		result = append(result, LokiStream{
 			Stream: labels,
 			Values: [][]any{
@@ -48,7 +52,7 @@ func webStreamToLabeled(logStream *streams.WebStream, instance *dbops.Stream, tx
 	return result
 }
 
-func webStreamToStructured(logStream *streams.WebStream, instance *dbops.Stream, txID uuid.UUID) LokiStream {
+func (this *Loki) webStreamToStructured(logStream *streams.WebStream, instance *dbops.Stream, txID uuid.UUID) LokiStream {
 
 	labels := map[string]string{
 		"logpush_source": "web",
@@ -83,10 +87,15 @@ func webStreamToStructured(logStream *streams.WebStream, instance *dbops.Stream,
 
 		meta := map[string]string{}
 		maps.Copy(meta, metaFields)
-		meta["detected_level"] = entry.Level.String()
 
 		if entry.Meta != nil {
 			maps.Copy(meta, entry.Meta)
+		}
+
+		meta["detected_level"] = entry.Level.String()
+
+		if this.StrictLabels {
+			filterLabelFormat(meta)
 		}
 
 		streamValues = append(streamValues, []any{
@@ -94,6 +103,10 @@ func webStreamToStructured(logStream *streams.WebStream, instance *dbops.Stream,
 			entry.Message,
 			meta,
 		})
+	}
+
+	if this.StrictLabels {
+		filterLabelFormat(labels)
 	}
 
 	return LokiStream{
