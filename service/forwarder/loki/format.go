@@ -41,7 +41,7 @@ func filterLabelFormat(labels map[string]string) {
 			slog.Warn("FORWARDER: LOKI: LABEL FILTER: Label value stripped",
 				slog.String("key", key))
 
-			labels[key] = value
+			labels[key] = stripped
 		}
 	}
 }
