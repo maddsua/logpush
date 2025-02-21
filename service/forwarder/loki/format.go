@@ -25,8 +25,8 @@ func filterLabelFormat(labels map[string]string) {
 				slog.String("new_key", stripped))
 
 			delete(labels, key)
-			labels[stripped] = value
 			key = stripped
+			labels[key] = value
 		}
 
 		if stripped := stripLabelValue(value); stripped == "" {
