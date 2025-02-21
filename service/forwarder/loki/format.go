@@ -2,6 +2,7 @@ package loki
 
 import (
 	"log/slog"
+	"strings"
 	"unicode"
 )
 
@@ -52,23 +53,22 @@ func stripLabelKey(key string) string {
 	for _, next := range key {
 
 		switch next {
-		case '_', '-':
-			stripped += string(next)
+		case '_', '-', '+', '*', '=':
+			stripped += "_"
 			continue
 		}
 
-		if next >= '0' && next <= '9' {
-			stripped += string(next)
-			continue
-		}
-
-		if (next >= 'A' && next <= 'Z') || next >= 'a' && next <= 'z' {
+		switch {
+		case
+			(next >= 'A' && next <= 'Z'),
+			(next >= 'a' && next <= 'z'),
+			(next >= '0' && next <= '9'):
 			stripped += string(next)
 			continue
 		}
 	}
 
-	return stripped
+	return strings.TrimSpace(stripped)
 }
 
 func stripLabelValue(key string) string {
