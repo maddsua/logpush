@@ -32,7 +32,7 @@ func (this *Loki) webStreamToLabeled(logStream *streams.WebStream, instance *dbo
 		labels := map[string]string{}
 		maps.Copy(labels, baseLabels)
 		logdata.CopyMetaFields(labels, entry.Meta)
-		labels["detected_level"] = entry.Level.String()
+		labels["level"] = entry.Level.String()
 
 		if this.StrictLabels {
 			filterLabelFormat(labels)
@@ -92,7 +92,7 @@ func (this *Loki) webStreamToStructured(logStream *streams.WebStream, instance *
 			maps.Copy(meta, entry.Meta)
 		}
 
-		meta["detected_level"] = entry.Level.String()
+		meta["level"] = entry.Level.String()
 
 		if this.StrictLabels {
 			filterLabelFormat(meta)
