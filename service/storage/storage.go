@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -8,18 +9,20 @@ import (
 )
 
 type Storage interface {
-	Store(entries []LogEntry) error
+	Push(entries []LogEntry) error
+	QueryRange(from time.Time, to time.Time) ([]LogEntry, error)
 	Close() error
 }
 
 type LogEntry struct {
+	ID          null.Int
 	Time        time.Time
 	Level       Level
 	Message     string
 	Labels      Metadata
 	Meta        Metadata
 	TxID        null.String
-	ServiceName string
+	ServiceName null.String
 }
 
 type Level string
@@ -35,20 +38,30 @@ func (lvl Level) String() string {
 
 type Metadata map[string]string
 
-func (this *Metadata) Data() []byte {
+func (this *Metadata) ToNullBytes() sql.Null[[]byte] {
 
 	if len(*this) == 0 {
-		return nil
+		return sql.Null[[]byte]{}
 	}
 
 	data, err := json.Marshal(this)
 	if err != nil || this == nil {
-		return []byte("{}")
+		return sql.Null[[]byte]{}
 	}
 
-	return data
+	return sql.Null[[]byte]{V: data, Valid: true}
 }
 
-func (this *Metadata) FromData(data []byte) error {
-	return json.Unmarshal(data, this)
+func MetadataFromData(data sql.Null[[]byte]) Metadata {
+
+	if !data.Valid {
+		return nil
+	}
+
+	var meta Metadata
+	if err := json.Unmarshal(data.V, &meta); err != nil {
+		return nil
+	}
+
+	return meta
 }

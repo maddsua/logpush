@@ -1,32 +1,5 @@
 version: "2"
 sql:
-  - engine: "postgresql"
-    queries: "queries.sql"
-    schema: "migrations"
-    gen:
-      go:
-        package: "dbops"
-        out: "dbops"
-        overrides:
-          - db_type: "uuid"
-            go_type:
-              import: "github.com/google/uuid"
-              type: "UUID"
-          - db_type: "uuid"
-            nullable: true
-            go_type:
-              import: "github.com/google/uuid"
-              type: "NullUUID"
-          - db_type: "jsonb"
-            go_type:
-              type: "RawMessage"
-              import: "encoding/json"
-          - db_type: "jsonb"
-            nullable: true
-            go_type:
-              type: "Null[[]byte]"
-              import: "database/sql"
-
   - engine: "sqlite"
     queries: "storage/sqlite/queries.sql"
     schema: "storage/sqlite/migrations"
@@ -34,6 +7,16 @@ sql:
       go:
         package: "queries"
         out: "storage/sqlite/queries"
+        overrides:
+          - db_type: "blob"
+            go_type:
+              type: "RawMessage"
+              import: "encoding/json"
+          - db_type: "blob"
+            nullable: true
+            go_type:
+              type: "Null[[]byte]"
+              import: "database/sql"
   - engine: "postgresql"
     queries: "storage/timescale/queries.sql"
     schema: "storage/timescale/migrations"

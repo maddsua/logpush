@@ -5,6 +5,7 @@ insert into entries (
 	message,
 	labels,
 	meta,
+	tx_id,
 	service_name
 ) values (
 	sqlc.arg(time),
@@ -12,6 +13,7 @@ insert into entries (
 	sqlc.arg(message),
 	sqlc.arg(labels),
 	sqlc.arg(meta),
+	sqlc.arg(tx_id),
 	sqlc.arg(service_name)
 );
 

@@ -7,6 +7,7 @@ package queries
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getEntriesRange = `-- name: GetEntriesRange :many
@@ -59,6 +60,7 @@ insert into entries (
 	message,
 	labels,
 	meta,
+	tx_id,
 	service_name
 ) values (
 	?1,
@@ -66,7 +68,8 @@ insert into entries (
 	?3,
 	?4,
 	?5,
-	?6
+	?6,
+	?7
 )
 `
 
@@ -74,9 +77,10 @@ type InsertEntryParams struct {
 	Time        int64
 	Level       string
 	Message     string
-	Labels      interface{}
-	Meta        interface{}
-	ServiceName interface{}
+	Labels      sql.Null[[]byte]
+	Meta        sql.Null[[]byte]
+	TxID        sql.NullString
+	ServiceName sql.NullString
 }
 
 func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error {
@@ -86,6 +90,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error 
 		arg.Message,
 		arg.Labels,
 		arg.Meta,
+		arg.TxID,
 		arg.ServiceName,
 	)
 	return err

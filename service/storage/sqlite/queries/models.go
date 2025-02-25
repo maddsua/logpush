@@ -4,13 +4,17 @@
 
 package queries
 
+import (
+	"database/sql"
+)
+
 type Entry struct {
 	ID          int64
 	Time        int64
 	Level       string
 	Message     string
-	Labels      interface{}
-	Meta        interface{}
-	TxID        interface{}
-	ServiceName interface{}
+	Labels      sql.Null[[]byte]
+	Meta        sql.Null[[]byte]
+	TxID        sql.NullString
+	ServiceName sql.NullString
 }

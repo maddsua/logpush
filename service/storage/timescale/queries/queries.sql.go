@@ -61,6 +61,7 @@ insert into entries (
 	message,
 	labels,
 	meta,
+	tx_id,
 	service_name
 ) values (
 	$1,
@@ -68,7 +69,8 @@ insert into entries (
 	$3,
 	$4,
 	$5,
-	$6
+	$6,
+	$7
 )
 `
 
@@ -78,6 +80,7 @@ type InsertEntryParams struct {
 	Message     string
 	Labels      sql.Null[[]byte]
 	Meta        sql.Null[[]byte]
+	TxID        sql.NullString
 	ServiceName sql.NullString
 }
 
@@ -88,6 +91,7 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error 
 		arg.Message,
 		arg.Labels,
 		arg.Meta,
+		arg.TxID,
 		arg.ServiceName,
 	)
 	return err

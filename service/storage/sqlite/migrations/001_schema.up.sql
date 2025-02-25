@@ -3,8 +3,8 @@ create table entries (
 	time integer not null,
 	level text not null,
 	message text not null,
-	labels blob null,
-	meta blob null,
-	tx_id text null,
-	service_name text null
+	labels blob,
+	meta blob,
+	tx_id text,
+	service_name text
 );
