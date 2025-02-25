@@ -9,8 +9,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 
@@ -55,9 +57,6 @@ func main() {
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	var storage storage.Storage
 
@@ -106,8 +105,11 @@ func main() {
 		Handler: mux,
 	}
 
-	slog.Info("Starting api server now",
+	slog.Info("Starting API server now",
 		slog.String("addr", srv.Addr))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && ctx.Err() == nil {
@@ -117,11 +119,16 @@ func main() {
 		}
 	}()
 
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		}
+	exit := make(chan os.Signal, 2)
+	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM)
+
+	<-exit
+
+	slog.Info("Shutting down...")
+
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("Error shutting server down",
+			slog.String("err", err.Error()))
 	}
 }
 
