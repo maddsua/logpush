@@ -141,8 +141,6 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		labelCleanup(next.Labels, this.Cfg)
 		labelCleanup(next.Meta, this.Cfg)
 
-		//	todo: add truncator
-
 		entries = append(entries, next)
 	}
 
@@ -151,8 +149,15 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		slog.String("stream_id", stream.ID),
 		slog.String("remote_addr", req.RemoteAddr))
 
-	//	todo: handle errors
-	go this.Storage.Push(entries)
+	go func() {
+		if err := this.Storage.Push(entries); err != nil {
+			slog.Error("Ingest: storage push failed",
+				slog.String("err", err.Error()),
+				slog.String("stream_id", stream.ID),
+				slog.String("remote_addr", req.RemoteAddr),
+				slog.Int("entries", len(entries)))
+		}
+	}()
 
 	return nil
 }

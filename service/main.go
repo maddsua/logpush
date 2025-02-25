@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -20,8 +19,6 @@ import (
 	sqlite_storage "github.com/maddsua/logpush/service/storage/sqlite"
 	timescale_storage "github.com/maddsua/logpush/service/storage/timescale"
 )
-
-var migrationsFs embed.FS
 
 func main() {
 
