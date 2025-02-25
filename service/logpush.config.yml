@@ -4,3 +4,9 @@ streams:
     labels:
       org: mws
       stack: ts
+  secured-test:
+    tag: test-app
+    token: ashley01
+    labels:
+      org: mws
+      stack: ts

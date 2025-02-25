@@ -37,6 +37,7 @@ func (this *RootConfig) Valid() error {
 type StreamConfig struct {
 	ID     string
 	Tag    string            `yaml:"tag" json:"tag"`
+	Token  string            `yaml:"token" json:"token"`
 	Labels map[string]string `yaml:"labels" json:"labels"`
 }
 
@@ -45,6 +46,8 @@ func (this *StreamConfig) Valid() error {
 	if this.Tag = strings.TrimSpace(this.Tag); this.Tag == "" {
 		return errors.New("stream tag must not be empty")
 	}
+
+	this.Token = strings.TrimSpace(this.Token)
 
 	return nil
 }

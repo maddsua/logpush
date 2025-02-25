@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"maps"
+	"math/rand"
 	"net"
 	"net/http"
 	"strconv"
@@ -51,8 +52,29 @@ func (this *LogIngester) handleProcedure(req *http.Request) error {
 	stream, has := this.Streams[streamID]
 	if !has {
 		slog.Warn("Ingester: Log stream not found",
-			slog.String("id", streamID))
+			slog.String("id", streamID),
+			slog.String("remote_addr", req.RemoteAddr))
 		return errors.New("stream not found")
+	}
+
+	if stream.Token != "" {
+
+		const bearerPrefix = "bearer"
+
+		clientToken := req.Header.Get("authorization")
+		if strings.HasPrefix(strings.ToLower(clientToken), bearerPrefix) {
+			clientToken = strings.TrimSpace(clientToken[len(bearerPrefix):])
+		}
+
+		if clientToken != stream.Token {
+
+			slog.Warn("Ingester: Stream token auth rejected",
+				slog.String("id", streamID),
+				slog.String("remote_addr", req.RemoteAddr))
+
+			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+			return errors.New("stream token auth failed")
+		}
 	}
 
 	if size, err := strconv.Atoi(req.Header.Get("content-length")); err != nil {

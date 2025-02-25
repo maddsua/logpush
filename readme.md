@@ -41,22 +41,19 @@ And if you find this project useful give it a star dawg
 
 ## Deploying
 
-Use the docker image and you're all set.
+First of all you need a config file to describe allowed logs streams. It looks something like this:
+```yml
+streams:
+  test: # here, "test" is a application key
+    tag: test-app
+	token: my-super-strong-token # if you need some more security, set this option and pass the same value to http Auth header
+    labels:
+      org: mws
+      stack: jamstack
+```
 
-### Env config options
+Then you'd need to privide either a `DATABASE_URL` if you want logpush to use timescale/postgres,
+or `LOKI_URL` for loki respectively.
 
-- `LOG_FMT`: `json|null` - Output JSON formatted logs
-- `DEBUG`: `true|false|null` - Shit to the console with super detailed logs
-- `PORT`: `{integer}|null` - HTTP server port
-- `DATABASE_URL`: `{string}` - PostgreSQL/TImescaleDB database URL
-- `LOKI_URL`: `{string}|null` - Loki HTTP API url (only schema and host are used)
-- `LOKI_STRUCTURED_METADATA`: `true|false|null` - Use loki structured metadata instead of labels for everything
-- `LOKI_STRICT_LABELS`: `true|false|null` - Restrict label expressions to a basic character set (latin letters, numbers, commonly used symbols)
-- `DB_MIGRATE`: `true|false|null` - Run DB migration on startup
-- `RPC_TOKEN`: `{string}|null` - Management API token
-- `INGESTER_MAX_LABELS`: `{int|null}` - Max number of labels per ingested stream (it's shared between `stream` and `stream.entry[idx]`; having multiple entries doesn't exhaust this quota)
-- `INGESTER_MAX_LABEL_NAME_LEN`: `{int|null}` - Max length of a label name (will truncate label names)
-- `INGESTER_MAX_LABEL_LEN`: `{int|null}` - Max length of a label value (will truncate label values)
-- `INGESTER_MAX_MESSAGES`: `{int|null}` - Max number of labels per ingested stream (will truncate stream)
-- `INGESTER_MAX_MESSAGE_LEN`: `{int|null}` - Max ingested message length (will truncate messages)
-- `INGESTER_KEEP_EMPTY_LABELS`: `{bool}|null` - Keep empty labels (replace with string literal "`[null]`")
+By default logpush uses a sqlite3 storage, which is not for production use. Not because sqlite is incapable,
+but becuase I don't have enough time to write a querier thingy for it. Maybe I'll just use Graphql at some point.
