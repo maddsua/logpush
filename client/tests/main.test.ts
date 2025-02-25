@@ -4,7 +4,7 @@ import { testAgentUrl } from "./test.config";
 const fakeHandler = async (request: Request, waitUntil: (task: Promise<any>) => void): Promise<Response> => {
 
 	const agent = new Agent(testAgentUrl, {
-		client_ip: request.headers.get('x-forwarded-for'),
+		remote_addr: request.headers.get('x-forwarded-for'),
 		agent: request.headers.get('user-agent'),
 		method: request.method.toLowerCase(),
 		api: new URL(request.url).pathname,
