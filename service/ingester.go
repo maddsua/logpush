@@ -147,14 +147,8 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 			Level:     storage.Level(item.Level),
 			Message:   truncateValue(item.Message, this.Cfg.MaxMessageSize),
 			TxID:      null.StringFrom(txID.String()),
-		}
-
-		if len(item.Meta) > 0 {
-			next.Meta = item.Meta
-		}
-
-		if len(stream.Labels) > 0 {
-			next.Labels = maps.Clone(stream.Labels)
+			Labels:    maps.Clone(stream.Labels),
+			Meta:      maps.Clone(item.Meta),
 		}
 
 		if len(payload.Meta) > 0 {
