@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+type Storage interface {
+	Store(entries []LogEntry) error
+	Close() error
+}
+
 type LogEntry struct {
 	Time     time.Time
 	Level    Level
