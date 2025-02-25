@@ -92,6 +92,13 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		return errors.New("invalid batch payload")
 	}
 
+	if len(payload.Entries) == 0 {
+		slog.Warn("Ingester: Empty payload",
+			slog.String("stream_id", stream.ID),
+			slog.String("remote_addr", req.RemoteAddr))
+		return nil
+	}
+
 	slog.Debug("Received entries",
 		slog.Int("count", len(payload.Entries)),
 		slog.String("stream_id", stream.ID),
@@ -142,6 +149,13 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		labelCleanup(next.Meta, this.Cfg)
 
 		entries = append(entries, next)
+	}
+
+	if len(entries) == 0 {
+		slog.Warn("Ingester: Parsed result is empty",
+			slog.String("stream_id", stream.ID),
+			slog.String("remote_addr", req.RemoteAddr))
+		return nil
 	}
 
 	slog.Debug("Ingest entries",
