@@ -46,7 +46,7 @@ First of all you need a config file to describe allowed logs streams. It looks s
 streams:
   test: # here, "test" is a application key
     tag: test-app
-	token: my-super-strong-token # if you need some more security, set this option and pass the same value to http Auth header
+    token: my-super-strong-token # if you need some more security, set this option and pass the same value to http Auth header
     labels:
       org: mws
       stack: jamstack
