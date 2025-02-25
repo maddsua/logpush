@@ -151,6 +151,8 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 			Meta:      maps.Clone(item.Meta),
 		}
 
+		//	todo: extract env from metadata to labels
+
 		if len(payload.Meta) > 0 {
 			if next.Meta == nil {
 				next.Meta = maps.Clone(payload.Meta)

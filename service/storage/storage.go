@@ -14,6 +14,7 @@ type Storage interface {
 	Close() error
 }
 
+// todo: store stream tag and txid as part of metadata
 type LogEntry struct {
 	ID        null.Int
 	Time      time.Time
