@@ -26,3 +26,18 @@ sql:
             go_type:
               type: "Null[[]byte]"
               import: "database/sql"
+
+  - engine: "sqlite"
+    queries: "storage/sqlite/queries.sql"
+    schema: "storage/sqlite/migrations"
+    gen:
+      go:
+        package: "queries"
+        out: "storage/sqlite/queries"
+  - engine: "postgresql"
+    queries: "storage/timescale/queries.sql"
+    schema: "storage/timescale/migrations"
+    gen:
+      go:
+        package: "queries"
+        out: "storage/timescale/queries"

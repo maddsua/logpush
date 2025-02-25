@@ -33,6 +33,10 @@ type Metadata map[string]string
 
 func (this *Metadata) Data() []byte {
 
+	if len(*this) == 0 {
+		return nil
+	}
+
 	data, err := json.Marshal(this)
 	if err != nil || this == nil {
 		return []byte("{}")
