@@ -41,3 +41,13 @@ sql:
       go:
         package: "queries"
         out: "storage/timescale/queries"
+        overrides:
+          - db_type: "jsonb"
+            go_type:
+              type: "RawMessage"
+              import: "encoding/json"
+          - db_type: "jsonb"
+            nullable: true
+            go_type:
+              type: "Null[[]byte]"
+              import: "database/sql"

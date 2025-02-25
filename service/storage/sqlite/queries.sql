@@ -4,13 +4,15 @@ insert into entries (
 	level,
 	message,
 	labels,
-	metadata
+	meta,
+	service_name
 ) values (
 	sqlc.arg(time),
 	sqlc.arg(level),
 	sqlc.arg(message),
 	sqlc.arg(labels),
-	sqlc.arg(metadata)
+	sqlc.arg(meta),
+	sqlc.arg(service_name)
 );
 
 -- name: GetEntriesRange :many

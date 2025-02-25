@@ -3,6 +3,8 @@ package storage
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/guregu/null"
 )
 
 type Storage interface {
@@ -11,11 +13,13 @@ type Storage interface {
 }
 
 type LogEntry struct {
-	Time     time.Time
-	Level    Level
-	Message  string
-	Labels   Metadata
-	Metadata Metadata
+	Time        time.Time
+	Level       Level
+	Message     string
+	Labels      Metadata
+	Meta        Metadata
+	TxID        null.String
+	ServiceName string
 }
 
 type Level string

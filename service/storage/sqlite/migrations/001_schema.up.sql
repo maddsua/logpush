@@ -4,5 +4,7 @@ create table entries (
 	level text not null,
 	message text not null,
 	labels blob null,
-	metadata blob null
+	meta blob null,
+	tx_id text null,
+	service_name text null
 );

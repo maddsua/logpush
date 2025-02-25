@@ -7,13 +7,12 @@ package queries
 
 import (
 	"context"
+	"database/sql"
 	"time"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 const getEntriesRange = `-- name: GetEntriesRange :many
-select id, time, level, message, labels, metadata from entries
+select id, time, level, message, labels, meta, tx_id, service_name from entries
 where time >= $1
 	and time <= $2
 `
@@ -38,7 +37,9 @@ func (q *Queries) GetEntriesRange(ctx context.Context, arg GetEntriesRangeParams
 			&i.Level,
 			&i.Message,
 			&i.Labels,
-			&i.Metadata,
+			&i.Meta,
+			&i.TxID,
+			&i.ServiceName,
 		); err != nil {
 			return nil, err
 		}
@@ -59,22 +60,25 @@ insert into entries (
 	level,
 	message,
 	labels,
-	metadata
+	meta,
+	service_name
 ) values (
 	$1,
 	$2,
 	$3,
 	$4,
-	$5
+	$5,
+	$6
 )
 `
 
 type InsertEntryParams struct {
-	Time     time.Time
-	Level    string
-	Message  string
-	Labels   pqtype.NullRawMessage
-	Metadata pqtype.NullRawMessage
+	Time        time.Time
+	Level       string
+	Message     string
+	Labels      sql.Null[[]byte]
+	Meta        sql.Null[[]byte]
+	ServiceName sql.NullString
 }
 
 func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error {
@@ -83,7 +87,8 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error 
 		arg.Level,
 		arg.Message,
 		arg.Labels,
-		arg.Metadata,
+		arg.Meta,
+		arg.ServiceName,
 	)
 	return err
 }

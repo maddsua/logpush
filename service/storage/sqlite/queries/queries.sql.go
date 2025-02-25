@@ -10,7 +10,7 @@ import (
 )
 
 const getEntriesRange = `-- name: GetEntriesRange :many
-select id, time, level, message, labels, metadata from entries
+select id, time, level, message, labels, meta, tx_id, service_name from entries
 where time >= ?1
 	and time <= ?2
 `
@@ -35,7 +35,9 @@ func (q *Queries) GetEntriesRange(ctx context.Context, arg GetEntriesRangeParams
 			&i.Level,
 			&i.Message,
 			&i.Labels,
-			&i.Metadata,
+			&i.Meta,
+			&i.TxID,
+			&i.ServiceName,
 		); err != nil {
 			return nil, err
 		}
@@ -56,22 +58,25 @@ insert into entries (
 	level,
 	message,
 	labels,
-	metadata
+	meta,
+	service_name
 ) values (
 	?1,
 	?2,
 	?3,
 	?4,
-	?5
+	?5,
+	?6
 )
 `
 
 type InsertEntryParams struct {
-	Time     int64
-	Level    string
-	Message  string
-	Labels   interface{}
-	Metadata interface{}
+	Time        int64
+	Level       string
+	Message     string
+	Labels      interface{}
+	Meta        interface{}
+	ServiceName interface{}
 }
 
 func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error {
@@ -80,7 +85,8 @@ func (q *Queries) InsertEntry(ctx context.Context, arg InsertEntryParams) error 
 		arg.Level,
 		arg.Message,
 		arg.Labels,
-		arg.Metadata,
+		arg.Meta,
+		arg.ServiceName,
 	)
 	return err
 }

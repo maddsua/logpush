@@ -5,10 +5,12 @@
 package queries
 
 type Entry struct {
-	ID       int64
-	Time     int64
-	Level    string
-	Message  string
-	Labels   interface{}
-	Metadata interface{}
+	ID          int64
+	Time        int64
+	Level       string
+	Message     string
+	Labels      interface{}
+	Meta        interface{}
+	TxID        interface{}
+	ServiceName interface{}
 }

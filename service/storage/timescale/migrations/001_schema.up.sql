@@ -4,5 +4,7 @@ create table entries (
 	level text not null,
 	message text not null,
 	labels jsonb null,
-	metadata jsonb null
+	meta jsonb null,
+	tx_id text null,
+	service_name text null
 );

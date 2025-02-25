@@ -5,16 +5,17 @@
 package queries
 
 import (
+	"database/sql"
 	"time"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 type Entry struct {
-	ID       int64
-	Time     time.Time
-	Level    string
-	Message  string
-	Labels   pqtype.NullRawMessage
-	Metadata pqtype.NullRawMessage
+	ID          int64
+	Time        time.Time
+	Level       string
+	Message     string
+	Labels      sql.Null[[]byte]
+	Meta        sql.Null[[]byte]
+	TxID        sql.NullString
+	ServiceName sql.NullString
 }
