@@ -22,6 +22,8 @@ import (
 	timescale_storage "github.com/maddsua/logpush/service/storage/timescale"
 )
 
+//	todo: exporter api
+
 func main() {
 
 	godotenv.Load()
@@ -119,17 +121,20 @@ func main() {
 		}
 	}()
 
+	defer func() {
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Error("Error shutting server down",
+				slog.String("err", err.Error()))
+		}
+	}()
+
 	exit := make(chan os.Signal, 2)
 	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM)
 
 	<-exit
 
 	slog.Info("Shutting down...")
-
-	if err := srv.Shutdown(ctx); err != nil {
-		slog.Error("Error shutting server down",
-			slog.String("err", err.Error()))
-	}
+	cancel()
 }
 
 func loadConfigFile(path string) (*RootConfig, error) {

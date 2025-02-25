@@ -138,10 +138,10 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		}
 
 		if len(payload.Meta) > 0 {
-			if next.Labels == nil {
-				next.Labels = maps.Clone(payload.Meta)
+			if next.Meta == nil {
+				next.Meta = maps.Clone(payload.Meta)
 			} else {
-				maps.Copy(next.Labels, payload.Meta)
+				maps.Copy(next.Meta, payload.Meta)
 			}
 		}
 
