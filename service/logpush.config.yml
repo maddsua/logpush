@@ -1,0 +1,6 @@
+streams:
+  test:
+    tag: test-app
+    labels:
+      org: mws
+      stack: ts

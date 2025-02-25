@@ -11,6 +11,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
+RUN apk add --no-cache ca-certificates
+
 COPY --from=builder /app/logpush-service ./
 
 ENTRYPOINT ["./logpush-service"]

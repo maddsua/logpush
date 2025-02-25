@@ -3,3 +3,4 @@ client/tests/run
 .env
 service/service
 service/logpush-service
+service/data

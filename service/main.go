@@ -2,230 +2,183 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"embed"
+	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
-	_ "github.com/lib/pq"
-	"github.com/maddsua/logpush/service/dbops"
-	"github.com/maddsua/logpush/service/forwarder/loki"
-	"github.com/maddsua/logpush/service/forwarder/timescale"
-	"github.com/maddsua/logpush/service/ingester"
-	rest_rpc "github.com/maddsua/logpush/service/rpc/rest"
+	"gopkg.in/yaml.v3"
 
 	"github.com/joho/godotenv"
+	"github.com/maddsua/logpush/service/storage"
+	loki_storage "github.com/maddsua/logpush/service/storage/loki"
+	sqlite_storage "github.com/maddsua/logpush/service/storage/sqlite"
+	timescale_storage "github.com/maddsua/logpush/service/storage/timescale"
 )
 
-//go:embed migrations/*
-var migrationsFs embed.FS
+//	todo: exporter api
 
 func main() {
 
 	godotenv.Load()
 
+	flagDebug := flag.Bool("debug", false, "Show debug logging")
+	flagConfigFile := flag.String("config", "./logpush.config.yml", "Set config value path")
+	flagDataDir := flag.String("data", "./data", "Data directory location")
+	flag.Parse()
+
+	slog.Info("Starting logpush service")
+
+	if *flagDebug || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug" {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+		slog.Debug("Enabled")
+	}
+
 	if strings.ToLower(os.Getenv("LOG_FMT")) == "json" {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	}
 
-	if envBool("DEBUG") {
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-		slog.Debug("Logging enabled")
-	}
+	slog.Info("Config file located",
+		slog.String("at", *flagConfigFile))
 
-	port := os.Getenv("PORT")
-	if _, err := strconv.Atoi(port); err != nil {
-		port = "8000"
-	}
-
-	dbconn, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	cfg, err := loadConfigFile(*flagConfigFile)
 	if err != nil {
-		slog.Error("STARTUP: Unable to open DB connection",
+		slog.Error("Failed to load config file",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
 
-	if err := dbconn.Ping(); err != nil {
-		slog.Error("STARTUP: Unable to connect to the DB",
+	if err := cfg.Valid(); err != nil {
+		slog.Error("Failed to validate config file",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
 
-	slog.Info("STARTUP: DB connection OK")
+	var storage storage.Storage
 
-	lokiConn, err := loki.ParseLokiUrl(os.Getenv("LOKI_URL"), loki.LokiOptions{
-		UseStructMeta: envBoolNf("LOKI_STRUCTURED_METADATA"),
-		StrictLabels:  envBoolNf("LOKI_STRICT_LABELS"),
-	})
-	if err != nil {
-		slog.Error("STARTUP: Unable to parse LOKI_HOST",
-			slog.String("err", err.Error()))
-		os.Exit(1)
-	}
+	if val := os.Getenv("DATABASE_URL"); val != "" {
 
-	if lokiConn != nil {
+		slog.Info("$DATABASE_URL is provided, overriding the default storage driver")
 
-		if err := lokiConn.Ready(); err != nil {
-			slog.Error("STARTUP: Loki is not ready",
+		driver, err := timescale_storage.NewTimescaleStorage(val)
+		if err != nil {
+			slog.Error("Failed to initialize timescale storage",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
+		storage = driver
 
-		slog.Info("STARTUP: Loki connection OK")
+	} else if val := os.Getenv("LOKI_URL"); val != "" {
+
+		slog.Info("$LOKI_URL is provided, overriding the default storage driver")
+
+		driver, err := loki_storage.NewLokiStorage(val)
+		if err != nil {
+			slog.Error("Failed to initialize loki storage",
+				slog.String("err", err.Error()))
+			os.Exit(1)
+		}
+		storage = driver
 
 	} else {
-		slog.Info("STARTUP: Loki not configured. Using Timescale/Postgres")
-	}
 
-	if envBool("DB_MIGRATEDEBUG") {
-
-		slog.Info("STARTUP: Running DB migrations")
-
-		if err := syncDbSchema(dbconn); err != nil {
-			slog.Error("STARTUP: DB migration failed",
+		driver, err := sqlite_storage.NewSqliteStorage(*flagDataDir)
+		if err != nil {
+			slog.Error("Failed to initialize sqlite3 storage",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
+		storage = driver
+	}
+
+	defer storage.Close()
+
+	ingester := LogIngester{
+		Storage: storage,
+		Cfg:     cfg.Ingester,
+		Streams: cfg.Streams,
 	}
 
 	mux := http.NewServeMux()
 
-	ingester := ingester.Ingester{
-		Loki:        lokiConn,
-		DB:          dbops.New(dbconn),
-		Timescale:   &timescale.Timescale{DB: dbconn},
-		StreamCache: ingester.NewStreamCache(),
-		Opts: ingester.IngesterOptions{
-			MaxLabels:       envInt("INGESTER_MAX_LABELS"),
-			MaxLabelNameLen: envInt("INGESTER_MAX_LABEL_NAME_LEN"),
-			MaxLabelLen:     envInt("INGESTER_MAX_LABEL_LEN"),
-			MaxMessages:     envInt("INGESTER_MAX_MESSAGES"),
-			MaxMessageLen:   envInt("INGESTER_MAX_MESSAGE_LEN"),
-			KeepEmptyLabels: envBoolNf("INGESTER_KEEP_EMPTY_LABELS"),
-		},
+	mux.Handle("POST /push/stream/{id}", &ingester)
+
+	port := os.Getenv("PORT")
+	if _, err := strconv.Atoi(port); err != nil || port == "" {
+		port = "7300"
 	}
 
-	mux.HandleFunc("POST /push/stream/{id}", func(writer http.ResponseWriter, req *http.Request) {
-
-		if err := ingester.HandleRequest(req); err != nil {
-			writer.WriteHeader(http.StatusBadRequest)
-			writer.Write([]byte(err.Error() + "\r\n"))
-			return
-		}
-
-		writer.Header().Set("content-type", "text/plain")
-		writer.WriteHeader(http.StatusNoContent)
-	})
-
-	if token := strings.TrimSpace(os.Getenv("RPC_TOKEN")); token != "" {
-		mux.Handle("/rpc/", http.StripPrefix("/rpc", &rest_rpc.RPCHandler{
-			RPCProcedures: rest_rpc.RPCProcedures{
-				DB: dbops.New(dbconn),
-			},
-			Token: token,
-			AuthAttempts: rest_rpc.AuthAttempts{
-				Attempts: 10,
-				Period:   6 * time.Hour,
-			},
-		}))
-	}
-
-	srv := http.Server{
-		Handler: rootMiddleware(mux),
+	srv := &http.Server{
 		Addr:    ":" + port,
+		Handler: mux,
 	}
 
-	slog.Info("STARTUP: Serving http",
-		slog.String("at", fmt.Sprintf("http://localhost:%s/", port)))
+	slog.Info("Starting API server now",
+		slog.String("addr", srv.Addr))
 
-	exitSig := make(chan os.Signal, 2)
-	signal.Notify(exitSig, syscall.SIGINT, syscall.SIGTERM)
-	srvSig := make(chan error)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			srvSig <- err
+		if err := srv.ListenAndServe(); err != nil && ctx.Err() == nil {
+			slog.Error("api server error",
+				slog.String("err", err.Error()))
+			os.Exit(1)
 		}
 	}()
 
-	select {
-	case <-exitSig:
-		srv.Shutdown(context.Background())
-		slog.Warn("SERVICE: Server shutting down...")
-	case err := <-srvSig:
-		slog.Error("SERVICE: server crashed",
-			slog.String("err", err.Error()))
-		os.Exit(1)
-	}
-}
-
-func syncDbSchema(dbconn *sql.DB) error {
-
-	migfs, err := iofs.New(migrationsFs, "migrations")
-	if err != nil {
-		return err
-	}
-
-	migdb, err := postgres.WithInstance(dbconn, &postgres.Config{})
-	if err != nil {
-		return err
-	}
-
-	mig, err := migrate.NewWithInstance("iofs", migfs, "postgres", migdb)
-	if err != nil {
-		return err
-	}
-
-	if err := mig.Up(); err != nil && err != migrate.ErrNoChange {
-		return err
-	}
-
-	return nil
-}
-
-func rootMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
-
-		if xff := req.Header.Get("x-forwarded-for"); xff != "" {
-			req.RemoteAddr = xff
-		} else if host, _, _ := net.SplitHostPort(req.RemoteAddr); host != "" {
-			req.RemoteAddr = host
+	defer func() {
+		if err := srv.Shutdown(ctx); err != nil {
+			slog.Error("Error shutting server down",
+				slog.String("err", err.Error()))
 		}
+	}()
 
-		next.ServeHTTP(writer, req)
-	})
+	exit := make(chan os.Signal, 2)
+	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM)
+
+	<-exit
+
+	slog.Info("Shutting down...")
+	cancel()
 }
 
-func envInt(name string) int {
+func loadConfigFile(path string) (*RootConfig, error) {
 
-	envVal := os.Getenv(name)
-	if envVal == "" {
-		return 0
-	}
-
-	val, err := strconv.Atoi(envVal)
+	file, err := os.OpenFile(path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		return 0
+		return nil, fmt.Errorf("failed to open config file: %s", err.Error())
 	}
 
-	return val
-}
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config file info: %s", err.Error())
+	}
 
-func envBool(name string) bool {
-	return strings.ToLower(os.Getenv(name)) == "true"
-}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("failed to read config file: config file must be a regular file")
+	}
 
-func envBoolNf(name string) bool {
-	return strings.ToLower(os.Getenv(name)) != "false"
+	var cfg RootConfig
+
+	if strings.HasSuffix(path, ".yml") {
+		if err := yaml.NewDecoder(file).Decode(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to decode config file: %s", err.Error())
+		}
+	} else if strings.HasSuffix(path, ".json") {
+		if err := json.NewDecoder(file).Decode(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to decode config file: %s", err.Error())
+		}
+	} else {
+		return nil, errors.New("unsupported config file format")
+	}
+
+	return &cfg, nil
 }
