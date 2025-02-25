@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/guregu/null"
@@ -121,7 +122,7 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		next := storage.LogEntry{
 			Time:    time.Unix(0, item.Date*int64(time.Millisecond)),
 			Level:   storage.Level(item.Level),
-			Message: item.Message,
+			Message: truncateValue(item.Message, this.Cfg.MaxMessageSize),
 			TxID:    null.StringFrom(txID.String()),
 		}
 
@@ -145,8 +146,8 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 			}
 		}
 
-		labelCleanup(next.Labels, this.Cfg)
-		labelCleanup(next.Meta, this.Cfg)
+		labelFormat(next.Labels, this.Cfg)
+		labelFormat(next.Meta, this.Cfg)
 
 		entries = append(entries, next)
 	}
@@ -176,31 +177,29 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 	return nil
 }
 
-func labelCleanup(labels map[string]string, cfg IngesterConfig) {
+func labelFormat(labels map[string]string, cfg IngesterConfig) {
 	for key, val := range labels {
 
-		cleanVal := strings.TrimSpace(val)
-		cleanKey := strings.TrimSpace(key)
+		keyFmt := truncateKey(stripLabel(strings.TrimSpace(key)), cfg.MaxLabelSize)
+		valFmt := truncateValue(stripLabel(strings.TrimSpace(val)), cfg.MaxLabelSize)
 
-		if cleanVal == "" && cfg.KeepEmptyLabels {
-			cleanVal = "null"
+		if valFmt == "" && cfg.KeepEmptyLabels {
+			valFmt = "null"
 		}
 
-		if cleanKey == "" || cleanVal == "" {
+		if keyFmt == "" || valFmt == "" {
 			delete(labels, key)
 			continue
 		}
 
-		if cleanKey != key {
-			labels[cleanKey] = cleanVal
+		if keyFmt != key {
 			delete(labels, key)
-			continue
+			labels[keyFmt] = valFmt
+			key = keyFmt
+		} else if valFmt != val {
+			labels[key] = valFmt
 		}
 	}
-}
-
-func cleanupString(input string) string {
-
 }
 
 func truncateValue(input string, n int) string {
@@ -209,14 +208,33 @@ func truncateValue(input string, n int) string {
 		return input
 	}
 
-	return input[:n] + "..."
+	return input[:n] + " ..."
 }
 
-func truncateLabelKey(input string, n int) string {
+func truncateKey(input string, n int) string {
 
 	if len(input) < n {
 		return input
 	}
 
 	return input[:n] + "___"
+}
+
+func stripLabel(key string) string {
+
+	var stripped string
+
+	for _, next := range key {
+
+		switch {
+		case next == '\\':
+			stripped += "/"
+		case unicode.IsPrint(next):
+			stripped += string(next)
+		default:
+			stripped += "?"
+		}
+	}
+
+	return stripped
 }
