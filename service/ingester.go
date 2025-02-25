@@ -198,3 +198,25 @@ func labelCleanup(labels map[string]string, cfg IngesterConfig) {
 		}
 	}
 }
+
+func cleanupString(input string) string {
+
+}
+
+func truncateValue(input string, n int) string {
+
+	if len(input) < n {
+		return input
+	}
+
+	return input[:n] + "..."
+}
+
+func truncateLabelKey(input string, n int) string {
+
+	if len(input) < n {
+		return input
+	}
+
+	return input[:n] + "___"
+}
