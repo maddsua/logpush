@@ -34,15 +34,15 @@ func main() {
 	flagDataDir := flag.String("data", "./data", "Data directory location")
 	flag.Parse()
 
+	if strings.ToLower(os.Getenv("LOG_FMT")) == "json" {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	}
+
 	slog.Info("Starting logpush service")
 
 	if *flagDebug || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug" {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 		slog.Debug("Enabled")
-	}
-
-	if strings.ToLower(os.Getenv("LOG_FMT")) == "json" {
-		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	}
 
 	slog.Info("Config file located",
