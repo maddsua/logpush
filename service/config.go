@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/maddsua/logpush/service/storage"
 )
 
 type RootConfig struct {
@@ -36,9 +38,9 @@ func (this *RootConfig) Valid() error {
 
 type StreamConfig struct {
 	ID     string
-	Tag    string            `yaml:"tag" json:"tag"`
-	Token  string            `yaml:"token" json:"token"`
-	Labels map[string]string `yaml:"labels" json:"labels"`
+	Tag    string           `yaml:"tag" json:"tag"`
+	Token  string           `yaml:"token" json:"token"`
+	Labels storage.Metadata `yaml:"labels" json:"labels"`
 }
 
 func (this *StreamConfig) Valid() error {

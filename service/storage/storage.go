@@ -3,6 +3,7 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"maps"
 	"time"
 
 	"github.com/guregu/null"
@@ -14,7 +15,6 @@ type Storage interface {
 	Close() error
 }
 
-// todo: store stream tag and txid as part of metadata
 type LogEntry struct {
 	ID        null.Int
 	Time      time.Time
@@ -39,9 +39,38 @@ func (lvl Level) String() string {
 
 type Metadata map[string]string
 
-func (this *Metadata) ToNullBytes() sql.Null[[]byte] {
+func (this Metadata) Clone() Metadata {
 
-	if len(*this) == 0 {
+	if this == nil {
+		return nil
+	}
+
+	newMeta := Metadata{}
+	maps.Copy(newMeta, this)
+	return newMeta
+}
+
+func (this Metadata) CloneEntries() Metadata {
+
+	if newMap := this.Clone(); newMap != nil {
+		return newMap
+	}
+
+	return Metadata{}
+}
+
+func (this Metadata) CopyInto(dest *Metadata) {
+
+	if *dest == nil {
+		*dest = Metadata{}
+	}
+
+	maps.Copy(*dest, this)
+}
+
+func (this Metadata) ToNullBytes() sql.Null[[]byte] {
+
+	if len(this) == 0 {
 		return sql.Null[[]byte]{}
 	}
 

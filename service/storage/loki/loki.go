@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -126,7 +125,7 @@ func (this *Loki) Push(entries []storage.LogEntry) error {
 				break
 			}
 
-			meta := maps.Clone(entry.Meta)
+			meta := entry.Meta.CloneEntries()
 			meta["level"] = entry.Level.String()
 			meta["service"] = entry.StreamTag
 

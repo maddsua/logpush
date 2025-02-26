@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -95,15 +94,15 @@ func (this *LogIngester) handleProcedure(req *http.Request) error {
 func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request) error {
 
 	type IngestedEntry struct {
-		Date    int64             `json:"date"`
-		Level   string            `json:"level"`
-		Message string            `json:"message"`
-		Meta    map[string]string `json:"meta"`
+		Date    int64            `json:"date"`
+		Level   string           `json:"level"`
+		Message string           `json:"message"`
+		Meta    storage.Metadata `json:"meta"`
 	}
 
 	type IngestedPayload struct {
-		Meta    map[string]string `json:"meta"`
-		Entries []IngestedEntry   `json:"entries"`
+		Meta    storage.Metadata `json:"meta"`
+		Entries []IngestedEntry  `json:"entries"`
 	}
 
 	var payload IngestedPayload
@@ -129,6 +128,8 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 
 	txID := uuid.New()
 
+	batchLabels, batchMeta := splitMetaLabels(payload.Meta)
+
 	var entries []storage.LogEntry
 	for _, item := range payload.Entries {
 
@@ -147,18 +148,16 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 			Level:     storage.Level(item.Level),
 			Message:   truncateValue(item.Message, this.Cfg.MaxMessageSize),
 			TxID:      null.StringFrom(txID.String()),
-			Labels:    maps.Clone(stream.Labels),
-			Meta:      maps.Clone(item.Meta),
+			Labels:    stream.Labels.Clone(),
+			Meta:      item.Meta.Clone(),
 		}
 
-		//	todo: extract env from metadata to labels
+		if len(batchLabels) > 0 {
+			batchLabels.CopyInto(&next.Labels)
+		}
 
-		if len(payload.Meta) > 0 {
-			if next.Meta == nil {
-				next.Meta = maps.Clone(payload.Meta)
-			} else {
-				maps.Copy(next.Meta, payload.Meta)
-			}
+		if len(batchMeta) > 0 {
+			batchMeta.CopyInto(&next.Meta)
 		}
 
 		labelFormat(next.Labels, this.Cfg)
@@ -252,4 +251,27 @@ func stripLabel(key string) string {
 	}
 
 	return stripped
+}
+
+func splitMetaLabels(labels storage.Metadata) (storage.Metadata, storage.Metadata) {
+
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	setLabels := storage.Metadata{}
+	setMeta := storage.Metadata{}
+
+	for key, val := range labels {
+		switch key {
+		case "env", "environment":
+			setLabels["env"] = val
+		case "client_ip":
+			setMeta["remote_addr"] = val
+		default:
+			setMeta[key] = val
+		}
+	}
+
+	return setLabels, setMeta
 }
