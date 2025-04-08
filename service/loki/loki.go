@@ -28,13 +28,13 @@ func NewCollector(urlstring string) (*loki, error) {
 		return nil, fmt.Errorf("url host is not defined")
 	}
 
-	loki := &loki{url: parsed}
+	this := &loki{url: parsed}
 
-	if err := loki.ready(); err != nil {
+	if err := this.ready(); err != nil {
 		return nil, fmt.Errorf("loki connection down: %s", err.Error())
 	}
 
-	return loki, nil
+	return this, nil
 }
 
 type loki struct {
