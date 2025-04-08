@@ -1,4 +1,4 @@
-package storage
+package logs
 
 import (
 	"database/sql"
@@ -9,13 +9,12 @@ import (
 	"github.com/guregu/null"
 )
 
-type Storage interface {
-	Push(entries []LogEntry) error
-	QueryRange(from time.Time, to time.Time) ([]LogEntry, error)
+type Collector interface {
+	Push(entries []Entry) error
 	Close() error
 }
 
-type LogEntry struct {
+type Entry struct {
 	ID        null.Int
 	Time      time.Time
 	StreamTag string

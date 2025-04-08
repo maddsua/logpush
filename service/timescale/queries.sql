@@ -16,8 +16,3 @@ insert into entries (
 	sqlc.arg(tx_id),
 	sqlc.arg(stream_tag)
 );
-
--- name: GetEntriesRange :many
-select * from entries
-where time >= sqlc.arg(range_from)
-	and time <= sqlc.arg(range_to);

@@ -14,11 +14,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/guregu/null"
-	"github.com/maddsua/logpush/service/storage"
+	"github.com/maddsua/logpush/service/logs"
 )
 
 type LogIngester struct {
-	Storage storage.Storage
+	Storage logs.Collector
 	Cfg     IngesterConfig
 	Streams map[string]StreamConfig
 }
@@ -94,15 +94,15 @@ func (this *LogIngester) handleProcedure(req *http.Request) error {
 func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request) error {
 
 	type IngestedEntry struct {
-		Date    int64            `json:"date"`
-		Level   string           `json:"level"`
-		Message string           `json:"message"`
-		Meta    storage.Metadata `json:"meta"`
+		Date    int64         `json:"date"`
+		Level   string        `json:"level"`
+		Message string        `json:"message"`
+		Meta    logs.Metadata `json:"meta"`
 	}
 
 	type IngestedPayload struct {
-		Meta    storage.Metadata `json:"meta"`
-		Entries []IngestedEntry  `json:"entries"`
+		Meta    logs.Metadata   `json:"meta"`
+		Entries []IngestedEntry `json:"entries"`
 	}
 
 	var payload IngestedPayload
@@ -130,7 +130,7 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 
 	batchLabels, batchMeta := splitMetaLabels(payload.Meta)
 
-	var entries []storage.LogEntry
+	var entries []logs.Entry
 	for _, item := range payload.Entries {
 
 		item.Message = strings.TrimSpace(item.Message)
@@ -142,10 +142,10 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 			item.Date = time.Now().UnixMilli()
 		}
 
-		next := storage.LogEntry{
+		next := logs.Entry{
 			Time:      time.Unix(0, item.Date*int64(time.Millisecond)),
 			StreamTag: stream.Tag,
-			Level:     storage.Level(item.Level),
+			Level:     logs.Level(item.Level),
 			Message:   truncateValue(item.Message, this.Cfg.MaxMessageSize),
 			TxID:      null.StringFrom(txID.String()),
 			Labels:    stream.Labels.Clone(),
@@ -253,14 +253,14 @@ func stripLabel(key string) string {
 	return stripped
 }
 
-func splitMetaLabels(labels storage.Metadata) (storage.Metadata, storage.Metadata) {
+func splitMetaLabels(labels logs.Metadata) (logs.Metadata, logs.Metadata) {
 
 	if len(labels) == 0 {
 		return nil, nil
 	}
 
-	setLabels := storage.Metadata{}
-	setMeta := storage.Metadata{}
+	setLabels := logs.Metadata{}
+	setMeta := logs.Metadata{}
 
 	for key, val := range labels {
 		switch key {

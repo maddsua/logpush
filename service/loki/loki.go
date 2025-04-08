@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/maddsua/logpush/service/storage"
+	"github.com/maddsua/logpush/service/logs"
 )
 
 func NewLokiStorage(urlstring string) (*Loki, error) {
@@ -77,11 +77,11 @@ func (this *Loki) ready() error {
 	return fmt.Errorf("[http] %d", resp.StatusCode)
 }
 
-func (this *Loki) QueryRange(from time.Time, to time.Time) ([]storage.LogEntry, error) {
+func (this *Loki) QueryRange(from time.Time, to time.Time) ([]logs.Entry, error) {
 	return nil, errors.New("loki storage doesn't support reads currently")
 }
 
-func (this *Loki) Push(entries []storage.LogEntry) error {
+func (this *Loki) Push(entries []logs.Entry) error {
 
 	if len(entries) == 0 {
 		return nil
@@ -114,7 +114,7 @@ func (this *Loki) Push(entries []storage.LogEntry) error {
 		if len(entries[idx].Labels) > 0 {
 			next.Stream = entries[idx].Labels
 		} else {
-			next.Stream = storage.Metadata{}
+			next.Stream = logs.Metadata{}
 		}
 
 		for ; idx < len(entries); idx++ {
@@ -189,7 +189,7 @@ func readErrorText(reader io.Reader) error {
 	return fmt.Errorf("failed to push log streams: %s", string(data))
 }
 
-func compareMetadata(a storage.Metadata, b storage.Metadata) bool {
+func compareMetadata(a logs.Metadata, b logs.Metadata) bool {
 
 	if len(a) != len(b) {
 		return false

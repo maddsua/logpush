@@ -8,12 +8,10 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/guregu/null"
 	_ "github.com/lib/pq"
-	"github.com/maddsua/logpush/service/storage"
-	"github.com/maddsua/logpush/service/storage/timescale/queries"
+	"github.com/maddsua/logpush/service/logs"
+	"github.com/maddsua/logpush/service/timescale/queries"
 
 	"github.com/golang-migrate/migrate/v4"
 	postgres_migrate "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -57,7 +55,7 @@ func (this *timescaleStorage) Close() error {
 	return this.db.Close()
 }
 
-func (this *timescaleStorage) Push(entries []storage.LogEntry) error {
+func (this *timescaleStorage) Push(entries []logs.Entry) error {
 
 	tx, err := this.db.Begin()
 	if err != nil {
@@ -81,33 +79,6 @@ func (this *timescaleStorage) Push(entries []storage.LogEntry) error {
 	}
 
 	return tx.Commit()
-}
-
-func (this *timescaleStorage) QueryRange(from time.Time, to time.Time) ([]storage.LogEntry, error) {
-
-	entries, err := this.queries.GetEntriesRange(context.Background(), queries.GetEntriesRangeParams{
-		RangeFrom: from,
-		RangeTo:   to,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]storage.LogEntry, len(entries))
-	for idx, val := range entries {
-		result[idx] = storage.LogEntry{
-			ID:        null.IntFrom(val.ID),
-			Time:      val.Time,
-			Message:   val.Message,
-			Level:     storage.Level(val.Level),
-			Labels:    storage.MetadataFromData(val.Labels),
-			Meta:      storage.MetadataFromData(val.Meta),
-			StreamTag: val.StreamTag,
-			TxID:      null.String{NullString: val.TxID},
-		}
-	}
-
-	return result, nil
 }
 
 func (this *timescaleStorage) migrate(db *sql.DB) error {
