@@ -18,9 +18,9 @@ import (
 )
 
 type LogIngester struct {
-	Storage logs.Collector
-	Cfg     IngesterConfig
-	Streams map[string]StreamConfig
+	Collector logs.Collector
+	Cfg       IngesterConfig
+	Streams   map[string]StreamConfig
 }
 
 func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
@@ -179,8 +179,8 @@ func (this *LogIngester) handleJsonInput(stream *StreamConfig, req *http.Request
 		slog.String("remote_addr", req.RemoteAddr))
 
 	go func() {
-		if err := this.Storage.Push(entries); err != nil {
-			slog.Error("Ingest: storage push failed",
+		if err := this.Collector.Push(entries); err != nil {
+			slog.Error("Ingest: collector push failed",
 				slog.String("err", err.Error()),
 				slog.String("stream_id", stream.ID),
 				slog.String("remote_addr", req.RemoteAddr),

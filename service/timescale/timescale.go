@@ -6,8 +6,6 @@ import (
 	"embed"
 	"fmt"
 	"log/slog"
-	"net/url"
-	"strings"
 
 	_ "github.com/lib/pq"
 	"github.com/maddsua/logpush/service/logs"
@@ -21,41 +19,32 @@ import (
 //go:embed migrations/*
 var migfs embed.FS
 
-func NewTimescaleStorage(dbUrl string) (*timescaleStorage, error) {
-
-	connUrl, err := url.Parse(dbUrl)
-	if err != nil {
-		return nil, err
-	}
+func NewCollector(dbUrl string) (*timescale, error) {
 
 	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	slog.Debug("Storage: Timescale enabled",
-		slog.String("host", connUrl.Host),
-		slog.String("name", strings.TrimPrefix(connUrl.Path, "/")))
+	this := &timescale{db: db, queries: queries.New(db)}
 
-	storage := &timescaleStorage{db: db, queries: queries.New(db)}
-
-	if err := storage.migrate(db); err != nil {
-		return nil, fmt.Errorf("failed to run storage migrations: %s", err.Error())
+	if err := this.migrate(db); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %s", err.Error())
 	}
 
-	return storage, nil
+	return this, nil
 }
 
-type timescaleStorage struct {
+type timescale struct {
 	db      *sql.DB
 	queries *queries.Queries
 }
 
-func (this *timescaleStorage) Close() error {
+func (this *timescale) Close() error {
 	return this.db.Close()
 }
 
-func (this *timescaleStorage) Push(entries []logs.Entry) error {
+func (this *timescale) Push(entries []logs.Entry) error {
 
 	tx, err := this.db.Begin()
 	if err != nil {
@@ -81,7 +70,7 @@ func (this *timescaleStorage) Push(entries []logs.Entry) error {
 	return tx.Commit()
 }
 
-func (this *timescaleStorage) migrate(db *sql.DB) error {
+func (this *timescale) migrate(db *sql.DB) error {
 
 	migfs, err := iofs.New(migfs, "migrations")
 	if err != nil {
@@ -107,7 +96,7 @@ func (this *timescaleStorage) migrate(db *sql.DB) error {
 		return err
 	}
 
-	slog.Debug("Storage migrated",
+	slog.Debug("Timescale collector: DB migrated",
 		slog.Int("version", int(version)),
 		slog.Bool("dirty", ditry))
 

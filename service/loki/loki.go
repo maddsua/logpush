@@ -3,7 +3,6 @@ package loki
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +13,7 @@ import (
 	"github.com/maddsua/logpush/service/logs"
 )
 
-func NewLokiStorage(urlstring string) (*Loki, error) {
+func NewCollector(urlstring string) (*loki, error) {
 
 	parsed, err := url.Parse(urlstring)
 	if err != nil {
@@ -29,7 +28,7 @@ func NewLokiStorage(urlstring string) (*Loki, error) {
 		return nil, fmt.Errorf("url host is not defined")
 	}
 
-	loki := &Loki{url: parsed}
+	loki := &loki{url: parsed}
 
 	if err := loki.ready(); err != nil {
 		return nil, fmt.Errorf("loki connection down: %s", err.Error())
@@ -38,15 +37,15 @@ func NewLokiStorage(urlstring string) (*Loki, error) {
 	return loki, nil
 }
 
-type Loki struct {
+type loki struct {
 	url *url.URL
 }
 
-func (this *Loki) Close() error {
+func (this *loki) Close() error {
 	return nil
 }
 
-func (this *Loki) ready() error {
+func (this *loki) ready() error {
 
 	useUrl := copyBaseUrl(this.url)
 	useUrl.Path = "/ready"
@@ -71,11 +70,7 @@ func (this *Loki) ready() error {
 	return fmt.Errorf("[http] %d", resp.StatusCode)
 }
 
-func (this *Loki) QueryRange(from time.Time, to time.Time) ([]logs.Entry, error) {
-	return nil, errors.New("loki storage doesn't support reads currently")
-}
-
-func (this *Loki) Push(entries []logs.Entry) error {
+func (this *loki) Push(entries []logs.Entry) error {
 
 	if len(entries) == 0 {
 		return nil

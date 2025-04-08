@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -60,44 +61,52 @@ func main() {
 		os.Exit(1)
 	}
 
-	var storage logs.Collector
+	var collector logs.Collector
 
 	if val := os.Getenv("DATABASE_URL"); val != "" {
 
-		slog.Info("STARTUP: Using Timescale data collector")
+		var dbUrl url.URL
+		if parsed, err := url.Parse(val); err == nil {
+			dbUrl.Scheme = parsed.Scheme
+			dbUrl.Host = parsed.Host
+		}
 
-		driver, err := timescale.NewTimescaleStorage(val)
+		slog.Info("STARTUP: Using Timescale data collector",
+			slog.String("url", dbUrl.String()))
+
+		driver, err := timescale.NewCollector(val)
 		if err != nil {
-			slog.Error("STARTUP: Failed to initialize timescale storage",
+			slog.Error("STARTUP: Failed to initialize timescale collector",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
-		storage = driver
+		collector = driver
 
 	} else if val := os.Getenv("LOKI_URL"); val != "" {
 
-		slog.Info("STARTUP: Using Loki data collector")
+		slog.Info("STARTUP: Using Loki data collector",
+			slog.String("url", val))
 
-		driver, err := loki.NewLokiStorage(val)
+		driver, err := loki.NewCollector(val)
 		if err != nil {
-			slog.Error("STARTUP: Failed to initialize loki storage",
+			slog.Error("STARTUP: Failed to initialize loki collector",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
-		storage = driver
+		collector = driver
 	}
 
-	if storage == nil {
+	if collector == nil {
 		slog.Error("STARTUP: No data collectors configured")
 		os.Exit(1)
 	}
 
-	defer storage.Close()
+	defer collector.Close()
 
 	ingester := LogIngester{
-		Storage: storage,
-		Cfg:     cfg.Ingester,
-		Streams: cfg.Streams,
+		Collector: collector,
+		Cfg:       cfg.Ingester,
+		Streams:   cfg.Streams,
 	}
 
 	mux := http.NewServeMux()
@@ -114,7 +123,7 @@ func main() {
 		Handler: mux,
 	}
 
-	slog.Info("STARTUP: Starting API server now",
+	slog.Info("STARTUP: Starting HTTP server now",
 		slog.String("addr", srv.Addr))
 
 	ctx, cancel := context.WithCancel(context.Background())
