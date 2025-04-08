@@ -48,12 +48,7 @@ func (this *Loki) Close() error {
 
 func (this *Loki) ready() error {
 
-	useUrl := url.URL{
-		Scheme: this.url.Scheme,
-		Host:   this.url.Host,
-		User:   this.url.User,
-	}
-
+	useUrl := copyBaseUrl(this.url)
 	useUrl.Path = "/ready"
 
 	req, err := http.NewRequest("GET", useUrl.String(), nil)
@@ -97,12 +92,7 @@ func (this *Loki) Push(entries []logs.Entry) error {
 		Streams []StreamEntry `json:"streams"`
 	}
 
-	useUrl := url.URL{
-		Scheme: this.url.Scheme,
-		Host:   this.url.Host,
-		User:   this.url.User,
-	}
-
+	useUrl := copyBaseUrl(this.url)
 	useUrl.Path = "/loki/api/v1/push"
 
 	var streams []StreamEntry
@@ -210,4 +200,12 @@ func compareMetadata(a logs.Metadata, b logs.Metadata) bool {
 
 func timeFmt(date time.Time, sequence int) string {
 	return strconv.FormatInt(date.UnixNano()+int64(sequence), 10)
+}
+
+func copyBaseUrl(base *url.URL) *url.URL {
+	return &url.URL{
+		Scheme: base.Scheme,
+		Host:   base.Host,
+		User:   base.User,
+	}
 }
