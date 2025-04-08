@@ -55,5 +55,6 @@ streams:
 Then you'd need to privide either a `DATABASE_URL` if you want logpush to use timescale/postgres,
 or `LOKI_URL` for loki respectively.
 
-By default logpush uses a sqlite3 storage, which is not for production use. Not because sqlite is incapable,
-but becuase I don't have enough time to write a querier thingy for it. Maybe I'll just use Graphql at some point.
+IMPORTANT: you should have structured metadata enabled in your loki config as this service uses that by default.
+It's simply there to prevent Loki from shitting the bed due to the high cardinality of the labels or whatever.
+Just enable the feature dawg.
