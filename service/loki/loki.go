@@ -29,8 +29,6 @@ func NewLokiStorage(urlstring string) (*Loki, error) {
 		return nil, fmt.Errorf("url host is not defined")
 	}
 
-	parsed.Path = ""
-
 	loki := &Loki{url: parsed}
 
 	if err := loki.ready(); err != nil {
@@ -50,9 +48,10 @@ func (this *Loki) Close() error {
 
 func (this *Loki) ready() error {
 
-	useUrl, err := url.Parse(this.url.String())
-	if err != nil {
-		return err
+	useUrl := url.URL{
+		Scheme: this.url.Scheme,
+		Host:   this.url.Host,
+		User:   this.url.User,
 	}
 
 	useUrl.Path = "/ready"
@@ -98,9 +97,10 @@ func (this *Loki) Push(entries []logs.Entry) error {
 		Streams []StreamEntry `json:"streams"`
 	}
 
-	useUrl, err := url.Parse(this.url.String())
-	if err != nil {
-		return err
+	useUrl := url.URL{
+		Scheme: this.url.Scheme,
+		Host:   this.url.Host,
+		User:   this.url.User,
 	}
 
 	useUrl.Path = "/loki/api/v1/push"
