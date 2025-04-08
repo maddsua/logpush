@@ -3,7 +3,6 @@ package loki
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/maddsua/logpush/service/storage"
+	"github.com/maddsua/logpush/service/logs"
 )
 
-func NewLokiStorage(urlstring string) (*Loki, error) {
+func NewCollector(urlstring string) (*loki, error) {
 
 	parsed, err := url.Parse(urlstring)
 	if err != nil {
@@ -29,32 +28,26 @@ func NewLokiStorage(urlstring string) (*Loki, error) {
 		return nil, fmt.Errorf("url host is not defined")
 	}
 
-	parsed.Path = ""
+	this := &loki{url: parsed}
 
-	loki := &Loki{url: parsed}
-
-	if err := loki.ready(); err != nil {
+	if err := this.ready(); err != nil {
 		return nil, fmt.Errorf("loki connection down: %s", err.Error())
 	}
 
-	return loki, nil
+	return this, nil
 }
 
-type Loki struct {
+type loki struct {
 	url *url.URL
 }
 
-func (this *Loki) Close() error {
+func (this *loki) Close() error {
 	return nil
 }
 
-func (this *Loki) ready() error {
+func (this *loki) ready() error {
 
-	useUrl, err := url.Parse(this.url.String())
-	if err != nil {
-		return err
-	}
-
+	useUrl := copyBaseUrl(this.url)
 	useUrl.Path = "/ready"
 
 	req, err := http.NewRequest("GET", useUrl.String(), nil)
@@ -77,11 +70,7 @@ func (this *Loki) ready() error {
 	return fmt.Errorf("[http] %d", resp.StatusCode)
 }
 
-func (this *Loki) QueryRange(from time.Time, to time.Time) ([]storage.LogEntry, error) {
-	return nil, errors.New("loki storage doesn't support reads currently")
-}
-
-func (this *Loki) Push(entries []storage.LogEntry) error {
+func (this *loki) Push(entries []logs.Entry) error {
 
 	if len(entries) == 0 {
 		return nil
@@ -98,11 +87,7 @@ func (this *Loki) Push(entries []storage.LogEntry) error {
 		Streams []StreamEntry `json:"streams"`
 	}
 
-	useUrl, err := url.Parse(this.url.String())
-	if err != nil {
-		return err
-	}
-
+	useUrl := copyBaseUrl(this.url)
 	useUrl.Path = "/loki/api/v1/push"
 
 	var streams []StreamEntry
@@ -114,7 +99,7 @@ func (this *Loki) Push(entries []storage.LogEntry) error {
 		if len(entries[idx].Labels) > 0 {
 			next.Stream = entries[idx].Labels
 		} else {
-			next.Stream = storage.Metadata{}
+			next.Stream = logs.Metadata{}
 		}
 
 		for ; idx < len(entries); idx++ {
@@ -189,7 +174,7 @@ func readErrorText(reader io.Reader) error {
 	return fmt.Errorf("failed to push log streams: %s", string(data))
 }
 
-func compareMetadata(a storage.Metadata, b storage.Metadata) bool {
+func compareMetadata(a logs.Metadata, b logs.Metadata) bool {
 
 	if len(a) != len(b) {
 		return false
@@ -210,4 +195,12 @@ func compareMetadata(a storage.Metadata, b storage.Metadata) bool {
 
 func timeFmt(date time.Time, sequence int) string {
 	return strconv.FormatInt(date.UnixNano()+int64(sequence), 10)
+}
+
+func copyBaseUrl(base *url.URL) *url.URL {
+	return &url.URL{
+		Scheme: base.Scheme,
+		Host:   base.Host,
+		User:   base.User,
+	}
 }

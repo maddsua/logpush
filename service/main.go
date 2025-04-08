@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -17,10 +18,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/joho/godotenv"
-	"github.com/maddsua/logpush/service/storage"
-	loki_storage "github.com/maddsua/logpush/service/storage/loki"
-	sqlite_storage "github.com/maddsua/logpush/service/storage/sqlite"
-	timescale_storage "github.com/maddsua/logpush/service/storage/timescale"
+	"github.com/maddsua/logpush/service/logs"
+	"github.com/maddsua/logpush/service/loki"
+	"github.com/maddsua/logpush/service/timescale"
 )
 
 //	todo: exporter api
@@ -31,7 +31,6 @@ func main() {
 
 	flagDebug := flag.Bool("debug", false, "Show debug logging")
 	flagConfigFile := flag.String("config", "./logpush.config.yml", "Set config value path")
-	flagDataDir := flag.String("data", "./data", "Data directory location")
 	flagLogFmt := flag.String("logfmt", "", "Log format: json|null")
 	flag.Parse()
 
@@ -39,72 +38,75 @@ func main() {
 		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	}
 
-	slog.Info("Starting logpush service")
+	slog.Info("STARTUP: Starting logpush service")
 
 	if *flagDebug || strings.ToLower(os.Getenv("LOG_LEVEL")) == "debug" {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
 		slog.Debug("Enabled")
 	}
 
-	slog.Info("Config file located",
+	slog.Info("STARTUP: Config file located",
 		slog.String("at", *flagConfigFile))
 
 	cfg, err := loadConfigFile(*flagConfigFile)
 	if err != nil {
-		slog.Error("Failed to load config file",
+		slog.Error("STARTUP: Failed to load config file",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
 
 	if err := cfg.Valid(); err != nil {
-		slog.Error("Failed to validate config file",
+		slog.Error("STARTUP: Failed to validate config file",
 			slog.String("err", err.Error()))
 		os.Exit(1)
 	}
 
-	var storage storage.Storage
+	var collector logs.Collector
 
 	if val := os.Getenv("DATABASE_URL"); val != "" {
 
-		slog.Info("$DATABASE_URL is provided, overriding the default storage driver")
+		var dbUrl url.URL
+		if parsed, err := url.Parse(val); err == nil {
+			dbUrl.Scheme = parsed.Scheme
+			dbUrl.Host = parsed.Host
+		}
 
-		driver, err := timescale_storage.NewTimescaleStorage(val)
+		slog.Info("STARTUP: Using Timescale data collector",
+			slog.String("url", dbUrl.String()))
+
+		driver, err := timescale.NewCollector(val)
 		if err != nil {
-			slog.Error("Failed to initialize timescale storage",
+			slog.Error("STARTUP: Failed to initialize timescale collector",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
-		storage = driver
+		collector = driver
 
 	} else if val := os.Getenv("LOKI_URL"); val != "" {
 
-		slog.Info("$LOKI_URL is provided, overriding the default storage driver")
+		slog.Info("STARTUP: Using Loki data collector",
+			slog.String("url", val))
 
-		driver, err := loki_storage.NewLokiStorage(val)
+		driver, err := loki.NewCollector(val)
 		if err != nil {
-			slog.Error("Failed to initialize loki storage",
+			slog.Error("STARTUP: Failed to initialize loki collector",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
-		storage = driver
-
-	} else {
-
-		driver, err := sqlite_storage.NewSqliteStorage(*flagDataDir)
-		if err != nil {
-			slog.Error("Failed to initialize sqlite3 storage",
-				slog.String("err", err.Error()))
-			os.Exit(1)
-		}
-		storage = driver
+		collector = driver
 	}
 
-	defer storage.Close()
+	if collector == nil {
+		slog.Error("STARTUP: No data collectors configured")
+		os.Exit(1)
+	}
+
+	defer collector.Close()
 
 	ingester := LogIngester{
-		Storage: storage,
-		Cfg:     cfg.Ingester,
-		Streams: cfg.Streams,
+		Collector: collector,
+		Cfg:       cfg.Ingester,
+		Streams:   cfg.Streams,
 	}
 
 	mux := http.NewServeMux()
@@ -121,7 +123,7 @@ func main() {
 		Handler: mux,
 	}
 
-	slog.Info("Starting API server now",
+	slog.Info("STARTUP: Starting HTTP server now",
 		slog.String("addr", srv.Addr))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -129,7 +131,7 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && ctx.Err() == nil {
-			slog.Error("api server error",
+			slog.Error("SERVICE: API server error",
 				slog.String("err", err.Error()))
 			os.Exit(1)
 		}
@@ -137,7 +139,7 @@ func main() {
 
 	defer func() {
 		if err := srv.Shutdown(ctx); err != nil {
-			slog.Error("Error shutting server down",
+			slog.Error("SERVICE: Error shutting server down",
 				slog.String("err", err.Error()))
 		}
 	}()
@@ -147,7 +149,7 @@ func main() {
 
 	<-exit
 
-	slog.Info("Shutting down...")
+	slog.Info("SERVICE: Shutting down...")
 	cancel()
 }
 
