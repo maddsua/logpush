@@ -36,13 +36,21 @@ type LogIngester struct {
 	Options IngesterOptions
 	Streams map[string]StreamConfig
 
-	validated bool
+	optionsValid bool
 }
 
-func (this *LogIngester) validate() {
+func (this *LogIngester) validateOptions() {
+
+	if this.Options.MaxEntries <= 0 {
+		this.Options.MaxEntries = 1024
+	}
+
+	if this.Options.MaxMessageSize <= 0 {
+		this.Options.MaxMessageSize = 16 * 1024
+	}
 
 	if this.Options.MaxLabelSize <= 0 {
-		this.Options.MaxFieldSize = 64
+		this.Options.MaxLabelSize = 64
 	}
 
 	if this.Options.MaxFieldSize <= 0 {
@@ -53,13 +61,13 @@ func (this *LogIngester) validate() {
 		this.Options.MaxMetadataSize = 16 * 1024
 	}
 
-	this.validated = true
+	this.optionsValid = true
 }
 
 func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 
-	if !this.validated {
-		this.validate()
+	if !this.optionsValid {
+		this.validateOptions()
 	}
 
 	clientIP := parseXff(req)
@@ -168,16 +176,22 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 				return totalMetadataSize < this.Options.MaxMetadataSize
 			}
 
-			var copyFields = func(fields map[string]string) {
-				for key, val := range fields {
-					if canAddField(key, val) {
-						meta[stripLabel(truncateKey(key, this.Options.MaxLabelSize))] = stripLabel(truncateValue(val, this.Options.MaxFieldSize))
-					}
+			//	index batch labels first without adding them
+			for key, val := range batch.Meta {
+				_ = canAddField(key, val)
+			}
+
+			//	copy entry labels if still have space left
+			for key, val := range entry.Meta {
+				if canAddField(key, val) {
+					meta[stripLabel(truncateKey(key, this.Options.MaxLabelSize))] = stripLabel(truncateValue(val, this.Options.MaxFieldSize))
 				}
 			}
 
-			copyFields(batch.Meta)
-			copyFields(entry.Meta)
+			//	write batch labels over everything else
+			for key, val := range batch.Meta {
+				meta[stripLabel(truncateKey(key, this.Options.MaxLabelSize))] = stripLabel(truncateValue(val, this.Options.MaxFieldSize))
+			}
 
 			var timestamp time.Time
 			if entry.Date >= 0 {
@@ -241,11 +255,10 @@ type IngesterEntry struct {
 	Meta    map[string]string `json:"meta"`
 }
 
-func stripLabel(key string) string {
+func stripLabel(val string) string {
 
 	var stripped string
-
-	for _, next := range key {
+	for _, next := range val {
 
 		switch {
 		case next == '\\':
@@ -260,20 +273,28 @@ func stripLabel(key string) string {
 	return stripped
 }
 
-func truncateValue(input string, n int) string {
+func truncateValue(val string, n int) string {
 
-	if len(input) < n {
-		return input
+	if n <= 0 {
+		return val
 	}
 
-	return input[:n] + " ..."
+	if len(val) < n {
+		return val
+	}
+
+	return val[:n] + " ..."
 }
 
-func truncateKey(input string, n int) string {
+func truncateKey(val string, n int) string {
 
-	if len(input) < n {
-		return input
+	if n <= 0 {
+		return val
 	}
 
-	return input[:n] + "___"
+	if len(val) < n {
+		return val
+	}
+
+	return val[:n] + "___"
 }
