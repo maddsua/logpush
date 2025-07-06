@@ -78,7 +78,7 @@ func NewLokiWriter(lokiUrl string) (*lokiWriter, error) {
 			"org":         nil,
 			"app":         nil,
 			"env":         nil,
-			"api":         nil,
+			"service":     nil,
 			"scope":       nil,
 			"request_id":  nil,
 		},
