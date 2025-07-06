@@ -55,16 +55,18 @@ export class Agent {
 		
 		const date = new Date();
 
-		this.entries.push({
+		const entry = {
 			date: date.getTime(),
 			level,
 			message,
 			meta: unwrapMetadata(meta),
-		});
+		};
+
+		this.entries.push(entry);
 
 		const logFn = console.debug || console.log;
 		if (typeof logFn === 'function') {
-			logFn(`${slogDate(date)} ${level.toUpperCase()} ${message}`);
+			logFn(`${slogDate(date)} ${level.toUpperCase()} ${message}`, entry.meta || undefined);
 		}
 	};
 

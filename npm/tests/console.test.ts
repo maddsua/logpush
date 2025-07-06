@@ -34,21 +34,6 @@ agent.console.debug([
 	new Map([['key', 'value']]),
 ]);
 
-agent.console.debug({
-	type: 'lead data',
-	title: 'miata shop',
-	name: 'maddsua',
-	phone: '+380960000000',
-	bid_price: 35_000,
-	nested: {
-		type: 'lead data',
-		title: 'miata shop',
-		name: 'maddsua',
-		phone: '+380960000000',
-		bid_price: 35_000,
-	}
-});
-
 agent.console.debug(new URL('https://localhost:8080/path?query=goth'));
 
 agent.console.debug(new Headers({ 'content-type': 'application/json' }));

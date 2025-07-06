@@ -13,11 +13,12 @@
 		"node": ">=18.0.0"
 	},
 	"devDependencies": {
-		"esbuild": "^0.24.2",
+		"@faker-js/faker": "^9.9.0",
+		"esbuild": "^0.25.5",
 		"typescript": "^5.7.3"
 	},
 	"scripts": {
-		"test": "esbuild --format=esm --bundle --outfile=tests/run/test.mjs tests/main.test.ts && node tests/run/test.mjs",
+		"test:logger": "esbuild --format=esm --bundle --outfile=tests/run/logger.test.mjs tests/logger.test.ts && node tests/run/logger.test.mjs",
 		"test:console": "esbuild --format=esm --bundle --outfile=tests/run/console.test.mjs tests/console.test.ts && node tests/run/console.test.mjs",
 		"check": "tsc"
 	}
