@@ -123,9 +123,14 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		clientToken := req.Header.Get("Authorization")
 		if strings.HasPrefix(strings.ToLower(clientToken), bearerPrefix) {
 			clientToken = strings.TrimSpace(clientToken[len(bearerPrefix):])
+		} else if clientToken == "" {
+			clientToken = req.URL.Query().Get("token")
 		}
 
-		if clientToken != stream.Token {
+		if clientToken == "" {
+			respondError(fmt.Sprintf("auth token required for stream '%s'", streamID), http.StatusUnauthorized)
+			return
+		} else if clientToken != stream.Token {
 			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 			respondError(fmt.Sprintf("auth token rejected for stream '%s'", streamID), http.StatusForbidden)
 			return
