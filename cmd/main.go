@@ -64,6 +64,17 @@ func main() {
 	slog.Info("Config location",
 		slog.String("file", *cli.Cfg))
 
+	if len(cfg.Streams) > 0 {
+		for key, val := range cfg.Streams {
+			slog.Info("Add stream",
+				slog.String("key", key),
+				slog.String("tag", val.Tag),
+				slog.Bool("with_token", val.Token != ""))
+		}
+	} else {
+		slog.Warn("No streams found in config")
+	}
+
 	var writer logpush.LogWriter
 	if val := os.Getenv("TIMESCALE_URL"); val != "" {
 
