@@ -226,7 +226,7 @@ func (this *lokiWriter) WriteBatch(ctx context.Context, batch []LogEntry) error 
 		}
 
 		if entry.StreamTag != "" {
-			stream["stream_tag"] = entry.StreamTag
+			stream["service_name"] = entry.StreamTag
 		}
 
 		stream["level"] = entry.LogLevel.String()
