@@ -3,14 +3,14 @@ name: Publish package
 on:
   push:
     branches: ['main']
-    paths: ['client/package.json']
+    paths: ['npm/package.json']
 
 jobs:
   publish-gh:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./client
+        working-directory: ./npm
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./client
+        working-directory: ./npm
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4

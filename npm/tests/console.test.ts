@@ -1,4 +1,4 @@
-import { Agent } from "../lib/client";
+import { Agent } from "../lib/index";
 import { testAgentUrl } from "./test.config";
 
 const agent = new Agent(testAgentUrl, {
@@ -33,21 +33,6 @@ agent.console.debug([
 	{ value: 4, alt_value: 5 },
 	new Map([['key', 'value']]),
 ]);
-
-agent.console.debug({
-	type: 'lead data',
-	title: 'miata shop',
-	name: 'maddsua',
-	phone: '+380960000000',
-	bid_price: 35_000,
-	nested: {
-		type: 'lead data',
-		title: 'miata shop',
-		name: 'maddsua',
-		phone: '+380960000000',
-		bid_price: 35_000,
-	}
-});
 
 agent.console.debug(new URL('https://localhost:8080/path?query=goth'));
 

@@ -34,6 +34,6 @@ jobs:
         id: build-and-push
         uses: docker/build-push-action@v6
         with:
-          context: ./service
+          context: .
           push: true
           tags: ${{ env.IMAGE_BASE_TAG }}:${{ steps.vars.outputs.tag }}, ${{ env.IMAGE_BASE_TAG }}:latest
