@@ -1,56 +1,64 @@
 ## The elevator pitch
 
-I bet you had a headache of having to manualll check logs from multiple SaaS services.
+One way to tell this would be that it's really annoying having to jump from one dashboard to another just to check on all of your serverless apss. Yeah, pretty much not a single provider to this day provides a centralized operations center, sort of speak. You always end up clicking way too many buttons just to discover that everyting is broken after the latest commit by the intern.
 
-Imagine this: your 15 side projects with a total of 10 MAU are deployed in the popular these days way, where frontend
-sits on Netlify/Vercel/Cloudflare pages, the databases are completely different things
-living on their own and the rest is a bunch of auth services/lambdas that don't even want to live under the same roof.
+Another way to put it would be: renting an okay-ish VPS costs under 10 buchs these days, and getting proper log retention on Vercel costs over 20. You see where I'm gonig with it, right?
 
-Now, it's the end of the week and you want to check how your projects are doing. How many dashboards are you visiting?
+I mean, I don't condone ripping off the multimillion dollar companies but just so you know, nothing stops you from doing so.
 
-From my experience I would say that it's at least 15x`$the_number_of_services` different screens inside of those dashboards.
+The only downside here is that you'll still need to set up grafana yourself, yeah.
 
-And all of that just to check some logs?
+**Features:**
 
-### Grafana comes to help
+- Endpoint basic auth
+- Stream token auth
+- Log batching
+- TypeScript client (available on npm and the github registry)
+- Label sanitization
+- Log volume limits
 
-Grafana is a nice tool for data visualization. They have the Loki thingy for logs specifically, however their API is not
-the most convenient, and also, how do you separate different projects in a way they won't be able to interfere with each other?
+### Writers
 
-And what if you want to keep an eye on that funni new app from your friend who has kindly asked for your help?
-It really sounds like you want to have some sort of log stream separation and authentication.
+In order to be able to do anything meaningfull with your logs there must be a place to send them to. As of now only grafana loki and timescaledb are supported.
 
-### Logpush pushes logs
+#### timescale
 
-Yup this is where logpush comes into the play.
+Set `TIMESCALE_URL` to a valid postgres url to enable this driver. It will write all of your logs into a table called something like `logpush_entries_v?`, from which you can then query the logs using any sql client.
 
-The basic features are:
+#### loki
 
-- Batched log push REST API (go check the openapi spec)
-- TypeScript client, push agent and logger
-- Log stream authentication (aka apps can't push under some other app's names)
-- Label processing
-- Data output to Grafana Loki or Postgres/TimescaleDB
-- Stream size / log volume limits
-
-### Should you use it?
-
-If you have a ton of different apps shitting logs all over different hosting platforms, probably yes.
-
-And if you find this project useful give it a star dawg
+Set `LOKI_URL` to a url pointing to your loki host. The loki writer does a few label transformations in order to make proper tags available the way it's intended to. Pretty much, that's it.
 
 ## Deploying
 
-First of all you need a config file to describe allowed logs streams. It looks something like this:
-```yml
-streams:
-  test: # here, "test" is a application key
-    tag: test-app
-    token: my-super-strong-token # if you need some more security, set this option and pass the same value to http Auth header
-    labels:
-      org: mws
-      stack: jamstack
+The easiest way to deploy logpush is by using docker:
+```dockerfile
+from ghcr.io/maddsua/logpush:latest
+copy ./logpush.yml /etc/mws/logpush/logpush.yml
 ```
+
+Config reference:
+```yml
+ingester:
+  basic_auth:         # sets username/password pairs for all streams
+    username: password
+  max_entries: 100    # batch entry count limit. anything over this would be truncated
+  max_message_size: 100000  # message size limit in bytes
+  max_metadata_size: 64000  # total batch metadata block size limit in bytes
+  max_label_size: 100       # label key size limit in characters
+  max_field_size: 1000      # label value size limit in characters
+streams:
+  app-key:            # key is the unique stream_id or (service id in loki)
+    labels:           # custom stream labels that will be written over any conflicting log labels
+      org: mws
+      env: dev
+    token: verystrongpassword # oh look, we have an additional token requirement here
+```
+
+**Using auth:**
+
+- Basic auth: Pass it in the url params like so: `http://myuser:mypass@myhostpush/stream/myapp`
+- Token auth: Pass the token in the `Authorization` header (type: `Bearer`) OR with a `?token=token` URL parameter
 
 Then you'd need to privide either a `DATABASE_URL` if you want logpush to use timescale/postgres,
 or `LOKI_URL` for loki respectively.
