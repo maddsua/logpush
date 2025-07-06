@@ -98,7 +98,7 @@ func main() {
 
 	var mux http.ServeMux
 
-	mux.Handle("POST /push/stream/{id}", &logpush.LogIngester{
+	mux.Handle("POST /push/stream/{stream_key}", &logpush.LogIngester{
 		Writer:  writer,
 		Streams: cfg.Streams,
 		Options: cfg.Ingester,

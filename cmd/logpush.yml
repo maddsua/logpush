@@ -3,6 +3,7 @@ ingester:
     madd: test123
 streams:
   test-app:
+    tag: logpush-test-app
     labels:
       org: mws
       env: dev

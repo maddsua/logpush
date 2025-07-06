@@ -15,6 +15,7 @@ import (
 )
 
 type StreamConfig struct {
+	Tag    string            `yaml:"tag" json:"tag"`
 	Token  string            `yaml:"token" json:"token"`
 	Labels map[string]string `yaml:"labels" json:"labels"`
 }
@@ -104,15 +105,15 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	streamID := strings.ToLower(req.PathValue("id"))
-	if streamID == "" {
+	streamKey := strings.ToLower(req.PathValue("stream_key"))
+	if streamKey == "" {
 		respondError("stream id required", http.StatusBadRequest)
 		return
 	}
 
-	stream, has := this.Streams[streamID]
+	stream, has := this.Streams[streamKey]
 	if !has {
-		respondError(fmt.Sprintf("stream '%s' not found", streamID), http.StatusNotFound)
+		respondError(fmt.Sprintf("stream '%s' not found", streamKey), http.StatusNotFound)
 		return
 	}
 
@@ -128,11 +129,11 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		}
 
 		if clientToken == "" {
-			respondError(fmt.Sprintf("auth token required for stream '%s'", streamID), http.StatusUnauthorized)
+			respondError(fmt.Sprintf("auth token required for stream '%s'", streamKey), http.StatusUnauthorized)
 			return
 		} else if clientToken != stream.Token {
 			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-			respondError(fmt.Sprintf("auth token rejected for stream '%s'", streamID), http.StatusForbidden)
+			respondError(fmt.Sprintf("auth token rejected for stream '%s'", streamKey), http.StatusForbidden)
 			return
 		}
 	}
@@ -151,21 +152,21 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		if len(batch.Entries) == 0 {
 			slog.Warn("INGESTER Empty payload",
 				slog.String("ip", clientIP),
-				slog.String("stream_id", streamID))
+				slog.String("stream_id", streamKey))
 			break
 		}
 
 		slog.Debug("INGESTER Received",
 			slog.Int("entries", len(batch.Entries)),
 			slog.String("ip", clientIP),
-			slog.String("stream_id", streamID))
+			slog.String("stream_id", streamKey))
 
 		if this.Options.MaxEntries > 0 && len(batch.Entries) > this.Options.MaxEntries {
 			slog.Warn("INGESTER Entries truncated",
 				slog.Int("entries", len(batch.Entries)),
 				slog.Int("trunc", this.Options.MaxEntries),
 				slog.String("ip", clientIP),
-				slog.String("stream_id", streamID))
+				slog.String("stream_id", streamKey))
 			batch.Entries = batch.Entries[:this.Options.MaxEntries]
 		}
 
@@ -224,13 +225,18 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 					slog.Int("len", len(entry.Message)),
 					slog.Int("trunc", this.Options.MaxMessageSize),
 					slog.String("ip", clientIP),
-					slog.String("stream_id", streamID))
+					slog.String("stream_id", streamKey))
 				entry.Message = entry.Message[:this.Options.MaxMessageSize] + "..."
+			}
+
+			streamTag := stream.Tag
+			if streamTag == "" {
+				streamTag = streamKey
 			}
 
 			entries = append(entries, LogEntry{
 				Timestamp: timestamp,
-				StreamTag: streamID,
+				StreamTag: streamTag,
 				LogLevel:  LogLevel(entry.Level),
 				Message:   entry.Message,
 				Metadata:  meta,

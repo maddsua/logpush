@@ -54,7 +54,8 @@ ingester:
   max_label_size: 100       # label key size limit in characters
   max_field_size: 1000      # label value size limit in characters
 streams:
-  app-key:                  # key is the unique stream_id or (service id in loki)
+  stream-key:                  # key is the unique stream_id or (service id in loki)
+    tag: mytag              # optional value to overwrite app-key (some legacy systems use random tokens in stream keys as a security measure)
     labels:                 # custom stream labels that will be written over any conflicting log labels
       org: mws
       env: dev
