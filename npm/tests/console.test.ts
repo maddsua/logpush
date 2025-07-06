@@ -1,4 +1,4 @@
-import { Agent } from "../lib/client";
+import { Agent } from "../lib/index";
 import { testAgentUrl } from "./test.config";
 
 const agent = new Agent(testAgentUrl, {

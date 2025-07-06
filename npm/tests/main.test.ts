@@ -1,7 +1,10 @@
-import { Agent, type Logger } from "../lib/client";
+import { Agent } from "../lib/index";
+import { Logger } from "../lib/logger";
 import { testAgentUrl } from "./test.config";
 
 const fakeHandler = async (request: Request, waitUntil: (task: Promise<any>) => void): Promise<Response> => {
+
+	const started = new Date();
 
 	const agent = new Agent(testAgentUrl, {
 		remote_addr: request.headers.get('x-forwarded-for'),
@@ -11,9 +14,13 @@ const fakeHandler = async (request: Request, waitUntil: (task: Promise<any>) => 
 		env: 'prod',
 	});
 
+	agent.logger.log("Incoming request");
+
 	const result = await fakeProcedure(request, agent.logger);
 
 	waitUntil(agent.flush());
+	
+	agent.logger.debug("Request done", { t: new Date().getTime() - started.getTime() });
 
 	return result;
 };
@@ -48,7 +55,7 @@ const fakeRuntime = async (request: Request): Promise<Response> => {
 fakeRuntime(new Request('http://example.com/api/name/procedure', {
 	method: 'GET',
 	headers: {
-		'x-forwarded-for': '10.10.10.10',
+		'x-forwarded-for': '10.10.10.25',
 		'user-agent': 'x-maddsua-bruh'
 	}
 }));
