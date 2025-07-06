@@ -27,7 +27,13 @@ Set `TIMESCALE_URL` to a valid postgres url to enable this driver. It will write
 
 #### loki
 
-Set `LOKI_URL` to a url pointing to your loki host. The loki writer does a few label transformations in order to make proper tags available the way it's intended to. Pretty much, that's it.
+Set `LOKI_URL` to a url pointing to your loki host. The loki writer does a few label transformations in order to make proper tags available the way it's intended to.
+
+IMPORTANT: you should have structured metadata enabled in your loki config as this service uses that by default.
+It's simply there to prevent Loki from shitting the bed due to the high cardinality of the labels or whatever.
+Just enable the feature dawg.
+
+Structured metadata is enabled by adding `?labels=struct` or `s_meta=true` query parameters.
 
 ## Deploying
 
@@ -60,9 +66,7 @@ streams:
 - Basic auth: Pass it in the url params like so: `http://myuser:mypass@myhostpush/stream/myapp`
 - Token auth: Pass the token in the `Authorization` header (type: `Bearer`) OR with a `?token=token` URL parameter
 
-Then you'd need to privide either a `DATABASE_URL` if you want logpush to use timescale/postgres,
-or `LOKI_URL` for loki respectively.
 
-IMPORTANT: you should have structured metadata enabled in your loki config as this service uses that by default.
-It's simply there to prevent Loki from shitting the bed due to the high cardinality of the labels or whatever.
-Just enable the feature dawg.
+**Client URLs**
+
+To form a client URL follow this format: `{protocol}://{host}:{port}/${stream_id}?token={token}`.
