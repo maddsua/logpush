@@ -61,6 +61,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	slog.Info("Config location",
+		slog.String("file", *cli.Cfg))
+
 	var writer logpush.LogWriter
 	if val := os.Getenv("TIMESCALE_URL"); val != "" {
 
