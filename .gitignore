@@ -1,6 +1,4 @@
-**/node_modules
-client/tests/run
 .env
-service/service
-service/logpush-service
-service/data
+**/node_modules
+npm/tests/run
+cmd/cmd

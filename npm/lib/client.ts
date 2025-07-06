@@ -47,6 +47,11 @@ export interface LogpushConsole {
 	debug: (...args: any[]) => void;
 };
 
+type AgentBasicAuth = {
+	user: string;
+	pass: string;
+}
+
 /**
  * Logpush agent is a class that holds instance/context level metadata, log queue and a connection to Logpush service.
  * 
@@ -56,6 +61,7 @@ export interface LogpushConsole {
 export class Agent {
 
 	readonly url: string;
+	readonly auth: AgentBasicAuth | null = null;
 	readonly meta: Metadata;
 	private entries: LogEntry[];
 	
@@ -70,6 +76,12 @@ export class Agent {
 			if (service_id) {
 				useURL.pathname += service_id;
 			}
+		}
+
+		if (useURL.username) {
+			this.auth = { user: useURL.username, pass: useURL.password };
+			useURL.username = "";
+			useURL.password = "";
 		}
 
 		this.url = useURL.href;
@@ -129,9 +141,17 @@ export class Agent {
 			return;
 		}
 
+		const headers = new Headers({
+			"content-type": "application/json",
+		});
+
+		if (this.auth) {
+			headers.set("authorization", `Basic ${btoa(this.auth.user + ':' + this.auth.pass)}`);
+		}
+
 		const response = await fetch(this.url, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
+			headers: headers,
 			body: JSON.stringify({ meta: this.meta, entries: this.entries })
 		});
 

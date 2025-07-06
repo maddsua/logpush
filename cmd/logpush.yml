@@ -1,0 +1,13 @@
+ingester:
+  basic_auth:
+    madd: test123
+streams:
+  test-app:
+    labels:
+      org: mws
+      env: dev
+  test-app-secured:
+    token: verystrongpassword
+    labels:
+      org: mws
+      env: prod
