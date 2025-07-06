@@ -39,7 +39,13 @@ func (this LokiStreamValue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(line)
 }
 
-type LokiLabelTransformer func(val string) string
+type LokiLabelTransformer func(val string) (newKey string, newValue string)
+
+func lokiRenameLabel(newKey string) LokiLabelTransformer {
+	return func(val string) (string, string) {
+		return newKey, val
+	}
+}
 
 func NewLokiWriter(lokiUrl string) (*lokiWriter, error) {
 
@@ -72,15 +78,17 @@ func NewLokiWriter(lokiUrl string) (*lokiWriter, error) {
 		UseStructMeta: query.Get("labels") == "struct" || query.Get("s_meta") == "true",
 		ExtractLabels: map[string]LokiLabelTransformer{
 			"level":       nil,
-			"remote_addr": nil,
-			"client_ip":   nil,
 			"ip":          nil,
+			"remote_addr": lokiRenameLabel("ip"),
+			"client_ip":   lokiRenameLabel("ip"),
+			"rid":         nil,
+			"request_id":  lokiRenameLabel("rid"),
 			"org":         nil,
 			"app":         nil,
 			"env":         nil,
+			"environment": lokiRenameLabel("env"),
 			"service":     nil,
 			"scope":       nil,
-			"request_id":  nil,
 		},
 	}
 
@@ -214,7 +222,7 @@ func (this *lokiWriter) WriteBatch(ctx context.Context, batch []LogEntry) error 
 				if transform, isLabel := this.ExtractLabels[key]; isLabel {
 
 					if transform != nil {
-						val = transform(val)
+						key, val = transform(val)
 					}
 
 					stream[key] = val
