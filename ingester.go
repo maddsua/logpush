@@ -123,7 +123,7 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		clientToken := req.Header.Get("Authorization")
 		if strings.HasPrefix(strings.ToLower(clientToken), bearerPrefix) {
 			clientToken = strings.TrimSpace(clientToken[len(bearerPrefix):])
-		} else if clientToken == "" {
+		} else {
 			clientToken = req.URL.Query().Get("token")
 		}
 

@@ -6,6 +6,7 @@ streams:
     labels:
       org: mws
       env: dev
+    token: test
   test-app-secured:
     token: verystrongpassword
     labels:

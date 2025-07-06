@@ -25,17 +25,16 @@ export class Agent {
 	readonly logger: Logger;
 	readonly console: LogpushConsole;
 	
-	constructor(url: URL | string, meta?: MetadataInit, service_id?: string) {
+	constructor(url: URL | string, meta?: MetadataInit) {
 
 		this.meta = Object.assign({}, unwrapMetadata(meta) || {});
 
 		const useURL = typeof url === 'string' ? new URL(url) : url;
 
-		if (!useURL.pathname.toLowerCase().includes('/push/')) {
-			useURL.pathname = '/push/stream/';
-			if (service_id) {
-				useURL.pathname += service_id;
-			}
+		const streamPrefix = '/push/stream';
+
+		if (!useURL.pathname.toLowerCase().includes(streamPrefix)) {
+			useURL.pathname = streamPrefix+useURL.pathname;
 		}
 
 		if (useURL.username) {
