@@ -46,16 +46,16 @@ copy ./logpush.yml /etc/mws/logpush/logpush.yml
 Config reference:
 ```yml
 ingester:
-  basic_auth:         # sets username/password pairs for all streams
+  basic_auth:                # sets username/password pairs for all streams
     username: password
-  max_entries: 100    # batch entry count limit. anything over this would be truncated
+  max_entries: 100          # batch entry count limit. anything over this would be truncated
   max_message_size: 100000  # message size limit in bytes
   max_metadata_size: 64000  # total batch metadata block size limit in bytes
   max_label_size: 100       # label key size limit in characters
   max_field_size: 1000      # label value size limit in characters
 streams:
-  app-key:            # key is the unique stream_id or (service id in loki)
-    labels:           # custom stream labels that will be written over any conflicting log labels
+  app-key:                  # key is the unique stream_id or (service id in loki)
+    labels:                 # custom stream labels that will be written over any conflicting log labels
       org: mws
       env: dev
     token: verystrongpassword # oh look, we have an additional token requirement here
