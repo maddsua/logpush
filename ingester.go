@@ -181,21 +181,35 @@ func (this *LogIngester) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 				return totalMetadataSize < this.Options.MaxMetadataSize
 			}
 
-			//	index batch labels first without adding them
-			for key, val := range batch.Meta {
-				_ = canAddField(key, val)
+			var indexLabels = func(labels map[string]string) {
+				for key, val := range labels {
+					_ = canAddField(key, val)
+				}
 			}
+
+			var copyField = func(key string, val string) {
+				meta[stripLabel(truncateKey(key, this.Options.MaxLabelSize))] = stripLabel(truncateValue(val, this.Options.MaxFieldSize))
+			}
+
+			//	index stream and batch labels first without adding them
+			indexLabels(stream.Labels)
+			indexLabels(batch.Meta)
 
 			//	copy entry labels if still have space left
 			for key, val := range entry.Meta {
 				if canAddField(key, val) {
-					meta[stripLabel(truncateKey(key, this.Options.MaxLabelSize))] = stripLabel(truncateValue(val, this.Options.MaxFieldSize))
+					copyField(key, val)
 				}
 			}
 
-			//	write batch labels over everything else
+			//	write batch labels over entry meta
 			for key, val := range batch.Meta {
-				meta[stripLabel(truncateKey(key, this.Options.MaxLabelSize))] = stripLabel(truncateValue(val, this.Options.MaxFieldSize))
+				copyField(key, val)
+			}
+
+			//	write stream labels over everything else
+			for key, val := range stream.Labels {
+				copyField(key, val)
 			}
 
 			var timestamp time.Time
