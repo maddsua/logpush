@@ -34,6 +34,7 @@ func main() {
 
 	if os.Getenv("DEBUG") == "true" || *cli.Debug {
 		slog.SetLogLoggerLevel(slog.LevelDebug)
+		slog.Debug("Enabled")
 	}
 
 	if os.Getenv("LOGFMT") == "json" || *cli.JsonLogs {
