@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -70,6 +71,7 @@ func main() {
 			slog.Info("Add stream",
 				slog.String("key", key),
 				slog.String("tag", val.Tag),
+
 				slog.Bool("with_token", val.Token != ""))
 		}
 	} else {
@@ -99,10 +101,15 @@ func main() {
 			os.Exit(1)
 		}
 
+		if val := os.Getenv("LOKI_USE_STRUCT_META"); val != "" {
+			loki.UseStructMeta = strings.ToLower(val) == "true"
+		}
+
 		slog.Info("USING LOKI WRITER",
-			slog.Bool("structured_meta", loki.UseStructMeta))
+			slog.Bool("with_struct_meta", loki.UseStructMeta))
 
 		writer = loki
+
 	} else {
 		slog.Warn("USING STDOUT WRITER")
 		writer = &StdoutWriter{}

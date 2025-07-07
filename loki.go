@@ -75,7 +75,7 @@ func NewLokiWriter(lokiUrl string) (*lokiWriter, error) {
 			Host:   baseURL.Host,
 			User:   baseURL.User,
 		},
-		UseStructMeta: query.Get("labels") == "struct" || query.Get("s_meta") == "true",
+		UseStructMeta: query.Get("labels") == "struct",
 		ExtractLabels: map[string]LokiLabelTransformer{
 			"level":       nil,
 			"ip":          nil,
@@ -261,8 +261,10 @@ func (this *lokiWriter) WriteBatch(ctx context.Context, batch []LogEntry) error 
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode >= 300 {
+		if resp.StatusCode >= http.StatusBadRequest {
 			return fmt.Errorf("unexpected status '%d'", resp.StatusCode), false
+		} else if resp.StatusCode >= http.StatusInternalServerError {
+			return fmt.Errorf("service down with status '%d'", resp.StatusCode), true
 		}
 
 		return nil, false

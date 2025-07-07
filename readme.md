@@ -33,7 +33,7 @@ IMPORTANT: you should have structured metadata enabled in your loki config as th
 It's simply there to prevent Loki from shitting the bed due to the high cardinality of the labels or whatever.
 Just enable the feature dawg.
 
-Structured metadata is enabled by adding `?labels=struct` or `s_meta=true` query parameters.
+Structured metadata is enabled by adding the `?labels=struct` query parameter or setting the `LOKI_USE_STRUCT_META` env variable to `true`.
 
 ## Deploying
 
