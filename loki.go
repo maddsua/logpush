@@ -115,20 +115,32 @@ func (this *lokiWriter) Type() string {
 
 func (this *lokiWriter) fetch(ctx context.Context, method string, url url.URL, headers http.Header, body io.Reader) (*http.Response, error) {
 
-	req, err := http.NewRequest(method, url.String(), body)
-	if err != nil {
-		return nil, err
-	}
+	const attempts = 10
+	const attemptDelay = 100 * time.Millisecond
 
-	for key, values := range headers {
-		for _, val := range values {
-			req.Header.Add(key, val)
+	var doFetch = func() (*http.Response, error) {
+
+		req, err := http.NewRequest(method, url.String(), body)
+		if err != nil {
+			return nil, err
 		}
+
+		for key, values := range headers {
+			for _, val := range values {
+				req.Header.Add(key, val)
+			}
+		}
+
+		return http.DefaultClient.Do(req.WithContext(ctx))
 	}
 
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	var isOkayStatusCode = func(val int) bool {
+		return val >= http.StatusOK && val <= http.StatusIMUsed
+	}
 
-	if err == nil {
+	var doConsumeErrorResponse = func(resp *http.Response) {
+
+		defer resp.Body.Close()
 
 		switch resp.Header.Get("content-type") {
 
@@ -136,52 +148,70 @@ func (this *lokiWriter) fetch(ctx context.Context, method string, url url.URL, h
 			if body, err := io.ReadAll(resp.Body); err == nil {
 				slog.Debug("LOKI: API error",
 					slog.Int("status", resp.StatusCode),
-					slog.String("body", string(body)))
+					slog.String("body", string(body)),
+					slog.String("remote", this.baseURL.Host))
 			}
+
+		default:
+			slog.Debug("LOKI: API error",
+				slog.Int("status", resp.StatusCode),
+				slog.String("remote", this.baseURL.Host))
 		}
-
-	} else {
-		slog.Debug("LOKI: API error",
-			slog.String("err", err.Error()))
-	}
-
-	return resp, err
-}
-
-func (this *lokiWriter) Ping() error {
-
-	const attempts = 10
-	const timeout = 10 * time.Second
-
-	pingUrl := this.baseURL
-	pingUrl.Path = "/ready"
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	var doPing = func() error {
-
-		resp, err := this.fetch(ctx, http.MethodGet, pingUrl, nil, nil)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode >= 300 {
-			return fmt.Errorf("unexpected status '%d'", resp.StatusCode)
-		}
-
-		return nil
 	}
 
 	var lastErr error
 	for idx := 0; idx < attempts && ctx.Err() == nil; idx++ {
-		if lastErr = doPing(); lastErr == nil {
-			return nil
+
+		if resp, err := doFetch(); err != nil {
+			slog.Debug("LOKI: API call failed",
+				slog.String("err", err.Error()))
+			lastErr = fmt.Errorf("http request: %v", err)
+		} else if !isOkayStatusCode(resp.StatusCode) {
+
+			doConsumeErrorResponse(resp)
+
+			switch {
+
+			//	retry on server errors
+			case resp.StatusCode >= http.StatusInternalServerError:
+				lastErr = fmt.Errorf("service down with status '%d'", resp.StatusCode)
+
+			//	bail on client errors
+			default:
+				return nil, fmt.Errorf("unexpected status '%d'", resp.StatusCode)
+			}
+
+		} else {
+			return resp, err
 		}
+
+		time.Sleep(attemptDelay)
 	}
 
-	return lastErr
+	return nil, lastErr
+}
+
+func (this *lokiWriter) Ping() error {
+
+	const pingTimeout = 10 * time.Second
+
+	pingUrl := this.baseURL
+	pingUrl.Path = "/ready"
+
+	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
+	defer cancel()
+
+	resp, err := this.fetch(ctx, http.MethodGet, pingUrl, nil, nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("unexpected status '%d'", resp.StatusCode)
+	}
+
+	return nil
 }
 
 func (this *lokiWriter) WriteEntry(ctx context.Context, entry LogEntry) error {
@@ -189,8 +219,6 @@ func (this *lokiWriter) WriteEntry(ctx context.Context, entry LogEntry) error {
 }
 
 func (this *lokiWriter) WriteBatch(ctx context.Context, batch []LogEntry) error {
-
-	const attempts = 10
 
 	pushUrl := this.baseURL
 	pushUrl.Path = "/loki/api/v1/push"
@@ -253,36 +281,10 @@ func (this *lokiWriter) WriteBatch(ctx context.Context, batch []LogEntry) error 
 	headers := http.Header{}
 	headers.Set("Content-Type", "application/json")
 
-	var doPost = func() (error, bool) {
-
-		resp, err := this.fetch(ctx, http.MethodPost, pushUrl, headers, &body)
-		if err != nil {
-			return err, true
-		}
+	resp, err := this.fetch(ctx, http.MethodPost, pushUrl, headers, &body)
+	if err == nil {
 		defer resp.Body.Close()
-
-		if resp.StatusCode >= http.StatusBadRequest {
-			return fmt.Errorf("unexpected status '%d'", resp.StatusCode), false
-		} else if resp.StatusCode >= http.StatusInternalServerError {
-			return fmt.Errorf("service down with status '%d'", resp.StatusCode), true
-		}
-
-		return nil, false
 	}
 
-	var lastErr error
-	for idx := 0; idx < attempts && ctx.Err() == nil; idx++ {
-
-		err, retriable := doPost()
-		if err == nil {
-			return nil
-		} else if !retriable {
-			return err
-		}
-
-		lastErr = err
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	return lastErr
+	return err
 }
